@@ -188,8 +188,7 @@ func (fs Fs) Stat(name string) (os.FileInfo, error) {
 		return FileInfo{}, &os.PathError{
 			Op:   "stat",
 			Path: name,
-			//Err:  errors.New("not a directory"),
-			Err: os.ErrNotExist,
+			Err:  os.ErrNotExist,
 		}
 	}
 	return NewFileInfo(filepath.Base(name), false, *out.ContentLength, *out.LastModified), nil
@@ -213,8 +212,7 @@ func (fs Fs) statDirectory(name string) (os.FileInfo, error) {
 		return FileInfo{}, &os.PathError{
 			Op:   "stat",
 			Path: name,
-			//Err:  errors.New("no such file or directory"),
-			Err: os.ErrNotExist,
+			Err:  os.ErrNotExist,
 		}
 	}
 	return NewFileInfo(filepath.Base(name), true, 0, time.Time{}), nil
