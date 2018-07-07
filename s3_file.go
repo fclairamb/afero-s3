@@ -99,6 +99,7 @@ func (f *File) Readdir(n int) ([]os.FileInfo, error) {
 	return fis, nil
 }
 
+// ReaddirAll provides list of file info.
 func (f *File) ReaddirAll() ([]os.FileInfo, error) {
 	fileInfos := []os.FileInfo{}
 	for {
