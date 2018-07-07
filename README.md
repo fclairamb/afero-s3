@@ -1,6 +1,6 @@
 ## Readme
 
-Provide afero filesystem for s3.
+Provide afero filesystem with S3 as backend.
 
 ## Thanks
 
