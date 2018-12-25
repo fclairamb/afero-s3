@@ -2,7 +2,7 @@
 
 
 [[projects]]
-  digest = "1:45c90e359f33c24bff67e17f9e27b81799d0d82fb271775a30bc09e41f21e438"
+  digest = "1:2ab85e1c0578804ec09602b075bb7637f7cfb6892d827d39707b58f49eec613a"
   name = "github.com/aws/aws-sdk-go"
   packages = [
     "aws",
@@ -14,6 +14,7 @@
     "aws/credentials",
     "aws/credentials/ec2rolecreds",
     "aws/credentials/endpointcreds",
+    "aws/credentials/processcreds",
     "aws/credentials/stscreds",
     "aws/csm",
     "aws/defaults",
@@ -41,8 +42,8 @@
     "service/sts",
   ]
   pruneopts = ""
-  revision = "8cb75b60636a37baea457bc6d900b49d663e309c"
-  version = "v1.15.71"
+  revision = "3991042237b45cf58c9d5f34295942d5533c28c6"
+  version = "v1.16.11"
 
 [[projects]]
   digest = "1:617b3e0f5989d4ff866a1820480990c65dfc9257eb080da749a45e2d76681b02"
@@ -53,11 +54,11 @@
   version = "v1.37.0"
 
 [[projects]]
-  digest = "1:6f49eae0c1e5dab1dafafee34b207aeb7a42303105960944828c2079b92fc88e"
+  digest = "1:13fe471d0ed891e8544eddfeeb0471fd3c9f2015609a1c000aefdedf52a19d40"
   name = "github.com/jmespath/go-jmespath"
   packages = ["."]
   pruneopts = ""
-  revision = "0b12d6b5"
+  revision = "c2b33e84"
 
 [[projects]]
   digest = "1:d0431c2fd72e39ee43ea7742322abbc200c3e704c9102c5c3c2e2e667095b0ca"
