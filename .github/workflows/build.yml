@@ -36,6 +36,9 @@ jobs:
         with:
           go-version: ${{ matrix.go }}
 
+      - name: Prepare
+        run: apt-get update >/dev/null && apt-get install git gcc -y >/dev/null
+
       - name: Build
         run: go get -v && go build -v ./...
 
@@ -44,7 +47,6 @@ jobs:
         # env:
         #   CGO_ENABLED: 0
         run: |
-          apt-get update >/dev/null && apt-get install gcc -y >/dev/null
           go test -race -v ./...
 
   # For github to have a unique status check name
