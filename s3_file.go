@@ -1,3 +1,4 @@
+// Package s3 brings S3 files handling to afero
 package s3
 
 import (
@@ -15,6 +16,7 @@ import (
 
 // File represents a file in S3.
 // It is not threadsafe.
+// nolint: maligned
 type File struct {
 	bucket string
 	name   string
@@ -189,9 +191,11 @@ func (f *File) Read(p []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer output.Body.Close()
 	n, err := output.Body.Read(p)
 	f.offset += n
+	if errClose := output.Body.Close(); errClose != nil {
+		return 0, errClose
+	}
 	return n, err
 }
 

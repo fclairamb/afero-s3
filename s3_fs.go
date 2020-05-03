@@ -1,3 +1,4 @@
+// Package s3 brings S3 files handling to afero
 package s3
 
 import (
@@ -73,7 +74,7 @@ func (fs Fs) Open(name string) (afero.File, error) {
 func (fs Fs) OpenFile(name string, flag int, perm os.FileMode) (afero.File, error) {
 	file := NewFile(fs.bucket, name, fs.s3API, fs)
 	if flag&os.O_APPEND != 0 {
-		return file, errors.New("S3 is eventually consistent. Appending files will lead to trouble")
+		return file, errors.New("s3 is eventually consistent. Appending files will lead to trouble")
 	}
 	if flag&os.O_CREATE != 0 {
 		if _, err := file.WriteString(""); err != nil {
@@ -175,8 +176,8 @@ func (fs Fs) Stat(name string) (os.FileInfo, error) {
 	})
 	if err != nil {
 		if strings.Contains(err.Error(), "404") {
-			statDir, err := fs.statDirectory(name)
-			return statDir, err
+			statDir, errStat := fs.statDirectory(name)
+			return statDir, errStat
 		}
 		return FileInfo{}, &os.PathError{
 			Op:   "stat",
