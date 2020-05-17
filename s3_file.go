@@ -3,7 +3,6 @@ package s3
 
 import (
 	"errors"
-	"fmt"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"io"
 	"os"
@@ -22,8 +21,9 @@ type File struct {
 	name string
 
 	// State of the file being Read and Written
-	streamRead  io.ReadCloser
-	streamWrite io.WriteCloser
+	streamRead          io.ReadCloser
+	streamWrite         io.WriteCloser
+	streamWriteCloseErr chan error
 
 	// readdir state
 	readdirContinuationToken *string
@@ -168,13 +168,21 @@ func (f *File) WriteString(s string) (int, error) {
 // Close closes the File, rendering it unusable for I/O.
 // It returns an error, if any.
 func (f *File) Close() error {
-	for _, s := range []io.Closer{f.streamRead, f.streamWrite} {
-		if s == nil {
-			continue
-		}
-		if err := s.Close(); err != nil {
+	if f.streamRead != nil {
+		// We try to close the Reader
+		if err := f.streamRead.Close(); err != nil {
 			return err
 		}
+	}
+	if f.streamWrite != nil {
+		// We try to close the Writer
+		if err := f.streamWrite.Close(); err != nil {
+			return err
+		}
+		// And more importantly, we wait for the actual writing performed in go-routine to finish...
+		err := <-f.streamWriteCloseErr
+		close(f.streamWriteCloseErr)
+		return err
 	}
 	return nil
 }
@@ -243,7 +251,7 @@ func (f *File) Write(p []byte) (int, error) {
 				reader: reader,
 			}
 		*/
-
+		f.streamWriteCloseErr = make(chan error)
 		f.streamWrite = writer
 
 		uploader := s3manager.NewUploader(f.fs.session)
@@ -255,11 +263,8 @@ func (f *File) Write(p []byte) (int, error) {
 				Key:    aws.String(f.name),
 				Body:   reader,
 			})
-			if err != nil {
-				fmt.Println("problem writing file:", err)
-			} else {
-				fmt.Println("Finished writing file !")
-			}
+			f.streamWriteCloseErr <- err
+			close(f.streamWriteCloseErr)
 		}()
 	}
 	return f.streamWrite.Write(p)
