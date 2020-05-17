@@ -4,6 +4,7 @@ package s3
 import (
 	"errors"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/spf13/afero"
 	"io"
 	"os"
 	"path/filepath"
@@ -21,7 +22,7 @@ type File struct {
 	name string
 
 	// State of the file being Read and Written
-	streamRead          io.ReadCloser
+	streamRead          *ReadSeekerEmulator
 	streamWrite         io.WriteCloser
 	streamWriteCloseErr chan error
 
@@ -31,7 +32,6 @@ type File struct {
 }
 
 var ErrNotImplemented = errors.New("not implemented (2)")
-var ErrAccessAfterClose = errors.New("access after close")
 
 // NewFile initializes an File object.
 func NewFile(fs *Fs, name string) *File {
@@ -168,23 +168,38 @@ func (f *File) WriteString(s string) (int, error) {
 // Close closes the File, rendering it unusable for I/O.
 // It returns an error, if any.
 func (f *File) Close() error {
+	// Closing a reading stream
 	if f.streamRead != nil {
 		// We try to close the Reader
+		defer func() {
+			f.streamRead = nil
+		}()
 		if err := f.streamRead.Close(); err != nil {
 			return err
 		}
 	}
+
+	// Closing a writing stream
 	if f.streamWrite != nil {
+		defer func() {
+			f.streamWrite = nil
+			f.streamWriteCloseErr = nil
+		}()
+
 		// We try to close the Writer
 		if err := f.streamWrite.Close(); err != nil {
 			return err
 		}
-		// And more importantly, we wait for the actual writing performed in go-routine to finish...
+		// And more importantly, we wait for the actual writing performed in go-routine to finish.
+		// We might have at most 2*5=10MB of data waiting to be flushed before close returns. This
+		// might be rather slow.
 		err := <-f.streamWriteCloseErr
 		close(f.streamWriteCloseErr)
 		return err
 	}
-	return nil
+
+	// Or maybe we don't have anything to close
+	return afero.ErrFileClosed
 }
 
 // Read reads up to len(b) bytes from the File.
@@ -199,7 +214,9 @@ func (f *File) Read(p []byte) (int, error) {
 		if err != nil {
 			return 0, err
 		}
-		f.streamRead = resp.Body
+		f.streamRead = &ReadSeekerEmulator{
+			reader: resp.Body,
+		}
 	}
 	return f.streamRead.Read(p)
 }
@@ -223,19 +240,14 @@ func (f *File) ReadAt(p []byte, off int64) (n int, err error) {
 // It returns the new offset and an error, if any.
 // The behavior of Seek on a file opened with O_APPEND is not specified.
 func (f *File) Seek(offset int64, whence int) (int64, error) {
-	return 0, ErrNotImplemented
-	/*
-		switch whence {
-		case 0:
-			f.offset = int(offset)
-		case 1:
-			f.offset += int(offset)
-		case 2:
-			// can probably do this if we had GetObjectOutput (ContentLength)
-			return 0, ErrNotImplemented
-		}
-		return int64(f.offset), nil
-	*/
+	// In write mode, this isn't supported
+	if f.streamWrite != nil {
+		return 0, ErrNotImplemented
+	}
+	if f.streamRead != nil {
+		return f.streamRead.Seek(offset, whence)
+	}
+	return 0, afero.ErrFileClosed
 }
 
 // Write writes len(b) bytes to the File.
@@ -246,11 +258,6 @@ func (f *File) Write(p []byte) (int, error) {
 
 		reader, writer := io.Pipe()
 
-		/*
-			fakeReader := &ReadSeekerEmulator{
-				reader: reader,
-			}
-		*/
 		f.streamWriteCloseErr = make(chan error)
 		f.streamWrite = writer
 
@@ -283,7 +290,7 @@ func (f *File) WriteAt(p []byte, off int64) (n int, err error) {
 }
 
 type ReadSeekerEmulator struct {
-	reader io.Reader
+	reader io.ReadCloser
 	offset int64
 }
 
@@ -326,4 +333,8 @@ func (s ReadSeekerEmulator) Read(p []byte) (int, error) {
 		s.offset += int64(n)
 	}
 	return n, err
+}
+
+func (s ReadSeekerEmulator) Close() error {
+	return s.reader.Close()
 }
