@@ -4,6 +4,7 @@ package s3
 import (
 	"errors"
 	"fmt"
+	"github.com/aws/aws-sdk-go/aws/session"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,19 +12,24 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/s3/s3iface"
 	"github.com/spf13/afero"
 )
 
 // Fs is an FS object backed by S3.
 type Fs struct {
-	bucket string
-	s3API  s3iface.S3API
+	bucket  string           // Bucket name
+	session *session.Session // Session config
+	s3API   *s3.S3
 }
 
 // NewFs creates a new Fs object writing files to a given S3 bucket.
-func NewFs(bucket string, s3API s3iface.S3API) *Fs {
-	return &Fs{bucket: bucket, s3API: s3API}
+func NewFs(bucket string, session *session.Session) *Fs {
+	s3Api := s3.New(session)
+	return &Fs{
+		bucket:  bucket,
+		session: session,
+		s3API:   s3Api,
+	}
 }
 
 // Name returns the type of FS object this is: Fs.
@@ -38,13 +44,10 @@ func (fs Fs) Create(name string) (afero.File, error) {
 	// Create(), like all of S3, is eventually consistent.
 	// To protect against unexpected behavior, have this method
 	// wait until S3 reports the object exists.
-	if s3Client, ok := fs.s3API.(*s3.S3); ok {
-		return file, s3Client.WaitUntilObjectExists(&s3.HeadObjectInput{
-			Bucket: aws.String(fs.bucket),
-			Key:    aws.String(name),
-		})
-	}
-	return file, err
+	return file, fs.s3API.WaitUntilObjectExists(&s3.HeadObjectInput{
+		Bucket: aws.String(fs.bucket),
+		Key:    aws.String(name),
+	})
 }
 
 // Mkdir makes a directory in S3.
@@ -60,19 +63,19 @@ func (fs Fs) MkdirAll(path string, perm os.FileMode) error {
 
 // Open a file for reading.
 // If the file doesn't exist, Open will create the file.
-func (fs Fs) Open(name string) (afero.File, error) {
+func (fs *Fs) Open(name string) (afero.File, error) {
 	if _, err := fs.Stat(name); err != nil {
 		if os.IsNotExist(err) {
 			return fs.OpenFile(name, os.O_CREATE, 0777)
 		}
 		return (*File)(nil), err
 	}
-	return NewFile(fs.bucket, name, fs.s3API, fs), nil
+	return NewFile(fs, name), nil
 }
 
 // OpenFile opens a file.
-func (fs Fs) OpenFile(name string, flag int, perm os.FileMode) (afero.File, error) {
-	file := NewFile(fs.bucket, name, fs.s3API, fs)
+func (fs *Fs) OpenFile(name string, flag int, perm os.FileMode) (afero.File, error) {
+	file := NewFile(fs, name)
 	if flag&os.O_APPEND != 0 {
 		return file, errors.New("s3 is eventually consistent. Appending files will lead to trouble")
 	}
@@ -106,8 +109,8 @@ func (fs Fs) ForceRemove(name string) error {
 }
 
 // RemoveAll removes a path.
-func (fs Fs) RemoveAll(path string) error {
-	s3dir := NewFile(fs.bucket, path, fs.s3API, fs)
+func (fs *Fs) RemoveAll(path string) error {
+	s3dir := NewFile(fs, path)
 	fis, err := s3dir.Readdir(0)
 	if err != nil {
 		return err
@@ -184,7 +187,7 @@ func (fs Fs) Stat(name string) (os.FileInfo, error) {
 			Path: name,
 			Err:  err,
 		}
-	} else if err == nil && hasTrailingSlash(name) {
+	} else if hasTrailingSlash(name) {
 		// user asked for a directory, but this is a file
 		return FileInfo{name: name}, nil
 		/*

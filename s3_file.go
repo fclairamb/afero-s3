@@ -2,8 +2,8 @@
 package s3
 
 import (
-	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -11,40 +11,32 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/s3/s3iface"
-	"github.com/spf13/afero"
 )
 
 // File represents a file in S3.
 // It is not threadsafe.
 // nolint: maligned
 type File struct {
-	bucket string
-	name   string
-	s3Fs   afero.Fs
-	s3API  s3iface.S3API
+	fs   *Fs
+	name string
 
-	// state
-	offset int
-	closed bool
+	// State of the file being Read and Written
+	streamRead  io.ReadCloser
+	streamWrite io.WriteCloser
 
 	// readdir state
 	readdirContinuationToken *string
 	readdirNotTruncated      bool
 }
 
-var ErrNotImplemented = errors.New("not implemented")
+var ErrNotImplemented = errors.New("not implemented (2)")
 var ErrAccessAfterClose = errors.New("access after close")
 
 // NewFile initializes an File object.
-func NewFile(bucket, name string, s3API s3iface.S3API, s3Fs afero.Fs) *File {
+func NewFile(fs *Fs, name string) *File {
 	return &File{
-		bucket: bucket,
-		name:   name,
-		s3API:  s3API,
-		s3Fs:   s3Fs,
-		offset: 0,
-		closed: false,
+		fs:   fs,
+		name: name,
 	}
 }
 
@@ -80,9 +72,9 @@ func (f *File) Readdir(n int) ([]os.FileInfo, error) {
 	if name == "/" {
 		name = ""
 	}
-	output, err := f.s3API.ListObjectsV2(&s3.ListObjectsV2Input{
+	output, err := f.fs.s3API.ListObjectsV2(&s3.ListObjectsV2Input{
 		ContinuationToken: f.readdirContinuationToken,
-		Bucket:            aws.String(f.bucket),
+		Bucket:            aws.String(f.fs.bucket),
 		Prefix:            aws.String(name),
 		Delimiter:         aws.String("/"),
 		MaxKeys:           aws.Int64(int64(n)),
@@ -94,7 +86,7 @@ func (f *File) Readdir(n int) ([]os.FileInfo, error) {
 	if !(*output.IsTruncated) {
 		f.readdirNotTruncated = true
 	}
-	fis := []os.FileInfo{}
+	var fis []os.FileInfo
 	for _, subfolder := range output.CommonPrefixes {
 		fis = append(fis, NewFileInfo(filepath.Base("/"+*subfolder.Prefix), true, 0, time.Time{}))
 	}
@@ -151,7 +143,7 @@ func (f *File) Readdirnames(n int) ([]string, error) {
 // Stat returns the FileInfo structure describing file.
 // If there is an error, it will be of type *PathError.
 func (f *File) Stat() (os.FileInfo, error) {
-	return f.s3Fs.Stat(f.Name())
+	return f.fs.Stat(f.Name())
 }
 
 // Sync is a noop.
@@ -162,7 +154,7 @@ func (f *File) Sync() error {
 // Truncate changes the size of the file.
 // It does not change the I/O offset.
 // If there is an error, it will be of type *PathError.
-func (f *File) Truncate(size int64) error {
+func (f *File) Truncate(int64) error {
 	return ErrNotImplemented
 }
 
@@ -175,7 +167,14 @@ func (f *File) WriteString(s string) (int, error) {
 // Close closes the File, rendering it unusable for I/O.
 // It returns an error, if any.
 func (f *File) Close() error {
-	f.closed = true
+	for _, s := range []io.Closer{f.streamRead, f.streamWrite} {
+		if s == nil {
+			continue
+		}
+		if err := s.Close(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -183,29 +182,17 @@ func (f *File) Close() error {
 // It returns the number of bytes read and an error, if any.
 // EOF is signaled by a zero count with err set to io.EOF.
 func (f *File) Read(p []byte) (int, error) {
-	if f.closed {
-		// mimic os.File's read after close behavior
-		return 0, ErrAccessAfterClose
+	if f.streamRead == nil {
+		resp, err := f.fs.s3API.GetObject(&s3.GetObjectInput{
+			Bucket: aws.String(f.fs.bucket),
+			Key:    aws.String(f.name),
+		})
+		if err != nil {
+			return 0, err
+		}
+		f.streamRead = resp.Body
 	}
-	if f.offset != 0 {
-		return 0, ErrNotImplemented
-	}
-	if len(p) == 0 {
-		return 0, nil
-	}
-	output, err := f.s3API.GetObject(&s3.GetObjectInput{
-		Bucket: aws.String(f.bucket),
-		Key:    aws.String(f.name),
-	})
-	if err != nil {
-		return 0, err
-	}
-	n, err := output.Body.Read(p)
-	f.offset += n
-	if errClose := output.Body.Close(); errClose != nil {
-		return 0, errClose
-	}
-	return n, err
+	return f.streamRead.Read(p)
 }
 
 // ReadAt reads len(p) bytes from the file starting at byte offset off.
@@ -227,44 +214,47 @@ func (f *File) ReadAt(p []byte, off int64) (n int, err error) {
 // It returns the new offset and an error, if any.
 // The behavior of Seek on a file opened with O_APPEND is not specified.
 func (f *File) Seek(offset int64, whence int) (int64, error) {
-	switch whence {
-	case 0:
-		f.offset = int(offset)
-	case 1:
-		f.offset += int(offset)
-	case 2:
-		// can probably do this if we had GetObjectOutput (ContentLength)
-		return 0, ErrNotImplemented
-	}
-	return int64(f.offset), nil
+	return 0, ErrNotImplemented
+	/*
+		switch whence {
+		case 0:
+			f.offset = int(offset)
+		case 1:
+			f.offset += int(offset)
+		case 2:
+			// can probably do this if we had GetObjectOutput (ContentLength)
+			return 0, ErrNotImplemented
+		}
+		return int64(f.offset), nil
+	*/
 }
 
 // Write writes len(b) bytes to the File.
 // It returns the number of bytes written and an error, if any.
 // Write returns a non-nil error when n != len(b).
 func (f *File) Write(p []byte) (int, error) {
-	if f.closed {
-		// mimic os.File's write after close behavior
-		// panic("write after close")
+	if f.streamWrite == nil {
 
-		// Panicking for that ? That's why ErrClosed exists.
-		return 0, afero.ErrFileClosed
+		reader, writer := io.Pipe()
+
+		fakeReader := &ReadSeekerEmulator{
+			reader: reader,
+		}
+
+		f.streamWrite = writer
+
+		go func() {
+			if _, err := f.fs.s3API.PutObject(&s3.PutObjectInput{
+				Bucket:               aws.String(f.fs.bucket),
+				Key:                  aws.String(f.name),
+				Body:                 fakeReader,
+				ServerSideEncryption: aws.String("AES256"),
+			}); err != nil {
+				fmt.Printf("problem writing file: %v", err)
+			}
+		}()
 	}
-	if f.offset != 0 {
-		return 0, errors.New("not supported yet")
-	}
-	readSeeker := bytes.NewReader(p)
-	size := int(readSeeker.Size())
-	if _, err := f.s3API.PutObject(&s3.PutObjectInput{
-		Bucket:               aws.String(f.bucket),
-		Key:                  aws.String(f.name),
-		Body:                 readSeeker,
-		ServerSideEncryption: aws.String("AES256"),
-	}); err != nil {
-		return 0, err
-	}
-	f.offset += size
-	return size, nil
+	return f.streamWrite.Write(p)
 }
 
 // WriteAt writes len(p) bytes to the file starting at byte offset off.
@@ -277,4 +267,50 @@ func (f *File) WriteAt(p []byte, off int64) (n int, err error) {
 	}
 	n, err = f.Write(p)
 	return
+}
+
+type ReadSeekerEmulator struct {
+	reader io.Reader
+	offset int64
+}
+
+func (s ReadSeekerEmulator) Seek(offset int64, whence int) (int64, error) {
+	var nbBytesToRead int64
+	switch whence {
+	case io.SeekStart:
+		nbBytesToRead = offset - s.offset
+	case io.SeekCurrent:
+		nbBytesToRead = offset
+	case io.SeekEnd:
+		return 0, ErrNotImplemented
+	}
+
+	// Going backward is technically possible (we just have to re-open the stream) but not supported at this stage
+	if nbBytesToRead < 0 {
+		return 0, ErrNotImplemented
+	}
+
+	// This fake-reading algorithm seems clunky
+	bufferSize := int64(8192)
+	buffer := make([]byte, 0, 8192)
+	for i := int64(0); i < nbBytesToRead; {
+		toRead := nbBytesToRead - i
+		if toRead > bufferSize {
+			toRead = bufferSize
+		}
+		read, err := s.Read(buffer[0:toRead])
+		i += int64(read)
+		if err != nil {
+			return i, err
+		}
+	}
+	return offset, nil
+}
+
+func (s ReadSeekerEmulator) Read(p []byte) (int, error) {
+	n, err := s.reader.Read(p)
+	if err == nil {
+		s.offset += int64(n)
+	}
+	return n, err
 }
