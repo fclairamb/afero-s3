@@ -32,6 +32,10 @@ func NewFs(bucket string, session *session.Session) *Fs {
 	}
 }
 
+var ErrNotImplemented = errors.New("not implemented")
+var ErrNotSupported = errors.New("s3 doesn't support this operation")
+var ErrAlreadyOpened = errors.New("already opened")
+
 // Name returns the type of FS object this is: Fs.
 func (Fs) Name() string { return "Fs" }
 
@@ -70,21 +74,39 @@ func (fs *Fs) Open(name string) (afero.File, error) {
 		}
 		return (*File)(nil), err
 	}
-	return NewFile(fs, name), nil
+	return fs.OpenFile(name, os.O_RDONLY, 0777)
 }
 
 // OpenFile opens a file.
 func (fs *Fs) OpenFile(name string, flag int, perm os.FileMode) (afero.File, error) {
 	file := NewFile(fs, name)
+
+	// Reading and writing is technically supported but can't lead to anything that makes sense
+	if flag&os.O_RDWR != 0 {
+		return nil, ErrNotSupported
+	}
+
+	// Appending is not supported
 	if flag&os.O_APPEND != 0 {
-		return file, errors.New("s3 is eventually consistent. Appending files will lead to trouble")
+		return nil, ErrNotSupported
 	}
-	if flag&os.O_CREATE != 0 {
-		if _, err := file.WriteString(""); err != nil {
-			return file, err
+
+	// We don't really support anything else than creating a file
+	/*
+		if flag&os.O_CREATE != 0 {
+			if _, err := file.WriteString(""); err != nil {
+				return file, err
+			}
 		}
+	*/
+
+	if flag&os.O_WRONLY != 0 {
+		return file, file.openWriteStream()
+	} else {
+		return file, file.openReadStream()
 	}
-	return file, nil
+
+	return nil, errors.New("file must be opened in read or write")
 }
 
 // Remove a file.
@@ -92,15 +114,11 @@ func (fs Fs) Remove(name string) error {
 	if _, err := fs.Stat(name); err != nil {
 		return err
 	}
-	_, err := fs.s3API.DeleteObject(&s3.DeleteObjectInput{
-		Bucket: aws.String(fs.bucket),
-		Key:    aws.String(name),
-	})
-	return err
+	return fs.forceRemove(name)
 }
 
-// ForceRemove doesn't error if a file does not exist.
-func (fs Fs) ForceRemove(name string) error {
+// forceRemove doesn't error if a file does not exist.
+func (fs Fs) forceRemove(name string) error {
 	_, err := fs.s3API.DeleteObject(&s3.DeleteObjectInput{
 		Bucket: aws.String(fs.bucket),
 		Key:    aws.String(name),
@@ -122,13 +140,13 @@ func (fs *Fs) RemoveAll(path string) error {
 				return err
 			}
 		} else {
-			if err := fs.ForceRemove(fullpath); err != nil {
+			if err := fs.forceRemove(fullpath); err != nil {
 				return err
 			}
 		}
 	}
 	// finally remove the "file" representing the directory
-	if err := fs.ForceRemove(s3dir.Name() + "/"); err != nil {
+	if err := fs.forceRemove(s3dir.Name() + "/"); err != nil {
 		return err
 	}
 	return nil
