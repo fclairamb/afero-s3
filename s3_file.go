@@ -207,6 +207,12 @@ func (f *File) Close() error {
 // It returns the number of bytes read and an error, if any.
 // EOF is signaled by a zero count with err set to io.EOF.
 func (f *File) Read(p []byte) (int, error) {
+	// Keeping this here for now, but we should move this into the file opening
+	if f.streamRead == nil {
+		if err := f.openReadStream(); err != nil {
+			return 0, err
+		}
+	}
 	return f.streamRead.Read(p)
 }
 
@@ -215,7 +221,7 @@ func (f *File) Read(p []byte) (int, error) {
 // ReadAt always returns a non-nil error when n < len(b).
 // At end of file, that error is io.EOF.
 func (f *File) ReadAt(p []byte, off int64) (n int, err error) {
-	_, err = f.Seek(off, 0)
+	_, err = f.Seek(off, io.SeekStart)
 	if err != nil {
 		return
 	}
