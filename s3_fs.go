@@ -169,10 +169,10 @@ func trimLeadingSlash(s string) string {
 // Stat returns a FileInfo describing the named file.
 // If there is an error, it will be of type *os.PathError.
 func (fs Fs) Stat(name string) (os.FileInfo, error) {
-	nameClean := filepath.Clean(name)
+	//nameClean := filepath.Clean(name)
 	out, err := fs.s3API.HeadObject(&s3.HeadObjectInput{
 		Bucket: aws.String(fs.bucket),
-		Key:    aws.String(nameClean),
+		Key:    aws.String(name),
 	})
 	if err != nil {
 		if strings.Contains(err.Error(), "404") {
@@ -186,11 +186,14 @@ func (fs Fs) Stat(name string) (os.FileInfo, error) {
 		}
 	} else if err == nil && hasTrailingSlash(name) {
 		// user asked for a directory, but this is a file
-		return FileInfo{}, &os.PathError{
-			Op:   "stat",
-			Path: name,
-			Err:  os.ErrNotExist,
-		}
+		return FileInfo{name: name}, nil
+		/*
+			return FileInfo{}, &os.PathError{
+				Op:   "stat",
+				Path: name,
+				Err:  os.ErrNotExist,
+			}
+		*/
 	}
 	return NewFileInfo(filepath.Base(name), false, *out.ContentLength, *out.LastModified), nil
 }
@@ -221,10 +224,10 @@ func (fs Fs) statDirectory(name string) (os.FileInfo, error) {
 
 // Chmod is TODO
 func (Fs) Chmod(name string, mode os.FileMode) error {
-	panic("implement Chmod")
+	return errors.New("not implemented")
 }
 
 // Chtimes is TODO
 func (Fs) Chtimes(name string, atime time.Time, mtime time.Time) error {
-	panic("implement Chtimes")
+	return errors.New("not implemented")
 }

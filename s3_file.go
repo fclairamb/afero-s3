@@ -3,6 +3,7 @@ package s3
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -31,6 +32,9 @@ type File struct {
 	readdirContinuationToken *string
 	readdirNotTruncated      bool
 }
+
+var ErrNotImplemented = errors.New("not implemented")
+var ErrAccessAfterClose = errors.New("access after close")
 
 // NewFile initializes an File object.
 func NewFile(bucket, name string, s3API s3iface.S3API, s3Fs afero.Fs) *File {
@@ -71,6 +75,11 @@ func (f *File) Readdir(n int) ([]os.FileInfo, error) {
 	// ListObjects treats leading slashes as part of the directory name
 	// It also needs a trailing slash to list contents of a directory.
 	name := trimLeadingSlash(f.Name()) + "/"
+
+	// For the root of the bucket, we need to remove any prefix
+	if name == "/" {
+		name = ""
+	}
 	output, err := f.s3API.ListObjectsV2(&s3.ListObjectsV2Input{
 		ContinuationToken: f.readdirContinuationToken,
 		Bucket:            aws.String(f.bucket),
@@ -154,7 +163,7 @@ func (f *File) Sync() error {
 // It does not change the I/O offset.
 // If there is an error, it will be of type *PathError.
 func (f *File) Truncate(size int64) error {
-	panic("implement Truncate")
+	return ErrNotImplemented
 }
 
 // WriteString is like Write, but writes the contents of string s rather than
@@ -176,10 +185,10 @@ func (f *File) Close() error {
 func (f *File) Read(p []byte) (int, error) {
 	if f.closed {
 		// mimic os.File's read after close behavior
-		panic("read after close")
+		return 0, ErrAccessAfterClose
 	}
 	if f.offset != 0 {
-		panic("TODO: non-offset == 0 read")
+		return 0, ErrNotImplemented
 	}
 	if len(p) == 0 {
 		return 0, nil
@@ -225,7 +234,7 @@ func (f *File) Seek(offset int64, whence int) (int64, error) {
 		f.offset += int(offset)
 	case 2:
 		// can probably do this if we had GetObjectOutput (ContentLength)
-		panic("TODO: whence == 2 seek")
+		return 0, ErrNotImplemented
 	}
 	return int64(f.offset), nil
 }
@@ -236,10 +245,13 @@ func (f *File) Seek(offset int64, whence int) (int64, error) {
 func (f *File) Write(p []byte) (int, error) {
 	if f.closed {
 		// mimic os.File's write after close behavior
-		panic("write after close")
+		// panic("write after close")
+
+		// Panicking for that ? That's why ErrClosed exists.
+		return 0, afero.ErrFileClosed
 	}
 	if f.offset != 0 {
-		panic("TODO: non-offset == 0 write")
+		return 0, errors.New("not supported yet")
 	}
 	readSeeker := bytes.NewReader(p)
 	size := int(readSeeker.Size())
