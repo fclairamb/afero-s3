@@ -2,15 +2,16 @@
 package s3
 
 import (
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
-	"github.com/spf13/afero"
 	"io"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/spf13/afero"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 )
 
 // File represents a file in S3.
@@ -21,7 +22,7 @@ type File struct {
 	name string
 
 	// State of the file being Read and Written
-	streamRead          *ReadSeekerEmulator
+	streamRead          *readSeekerEmulator
 	streamWrite         io.WriteCloser
 	streamWriteCloseErr chan error
 
@@ -84,7 +85,7 @@ func (f *File) Readdir(n int) ([]os.FileInfo, error) {
 	if !(*output.IsTruncated) {
 		f.readdirNotTruncated = true
 	}
-	var fis []os.FileInfo
+	var fis = make([]os.FileInfo, 0, len(output.CommonPrefixes)+len(output.Contents))
 	for _, subfolder := range output.CommonPrefixes {
 		fis = append(fis, NewFileInfo(filepath.Base("/"+*subfolder.Prefix), true, 0, time.Time{}))
 	}
@@ -277,7 +278,7 @@ func (f *File) openReadStream() error {
 	if err != nil {
 		return err
 	}
-	f.streamRead = &ReadSeekerEmulator{
+	f.streamRead = &readSeekerEmulator{
 		reader: resp.Body,
 	}
 	return nil
@@ -295,12 +296,13 @@ func (f *File) WriteAt(p []byte, off int64) (n int, err error) {
 	return
 }
 
-type ReadSeekerEmulator struct {
+type readSeekerEmulator struct {
 	reader io.ReadCloser
 	offset int64
 }
 
-func (s ReadSeekerEmulator) Seek(offset int64, whence int) (int64, error) {
+// Seek simulates a seek by actually reading, when possible, the underlying reader
+func (s readSeekerEmulator) Seek(offset int64, whence int) (int64, error) {
 	var nbBytesToRead int64
 	switch whence {
 	case io.SeekStart:
@@ -333,7 +335,8 @@ func (s ReadSeekerEmulator) Seek(offset int64, whence int) (int64, error) {
 	return offset, nil
 }
 
-func (s ReadSeekerEmulator) Read(p []byte) (int, error) {
+// Read performs a read on the underlying reader
+func (s readSeekerEmulator) Read(p []byte) (int, error) {
 	n, err := s.reader.Read(p)
 	if err == nil {
 		s.offset += int64(n)
@@ -341,6 +344,7 @@ func (s ReadSeekerEmulator) Read(p []byte) (int, error) {
 	return n, err
 }
 
-func (s ReadSeekerEmulator) Close() error {
+// Close closes the underlying reader
+func (s readSeekerEmulator) Close() error {
 	return s.reader.Close()
 }

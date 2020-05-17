@@ -4,13 +4,13 @@ package s3
 import (
 	"errors"
 	"fmt"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/spf13/afero"
 )
@@ -32,8 +32,13 @@ func NewFs(bucket string, session *session.Session) *Fs {
 	}
 }
 
+// ErrNotImplemented is returned when this operation is not (yet) implemented
 var ErrNotImplemented = errors.New("not implemented")
+
+// ErrNotSupported is returned when this operations is not supported by S3
 var ErrNotSupported = errors.New("s3 doesn't support this operation")
+
+// ErrAlreadyOpened is returned when the file is already opened
 var ErrAlreadyOpened = errors.New("already opened")
 
 // Name returns the type of FS object this is: Fs.
@@ -102,11 +107,9 @@ func (fs *Fs) OpenFile(name string, flag int, perm os.FileMode) (afero.File, err
 
 	if flag&os.O_WRONLY != 0 {
 		return file, file.openWriteStream()
-	} else {
-		return file, file.openReadStream()
 	}
 
-	return nil, errors.New("file must be opened in read or write")
+	return file, file.openReadStream()
 }
 
 // Remove a file.
