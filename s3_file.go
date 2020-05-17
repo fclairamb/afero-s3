@@ -31,7 +31,8 @@ type File struct {
 	readdirNotTruncated      bool
 }
 
-var ErrNotImplemented = errors.New("not implemented (2)")
+var ErrNotImplemented = errors.New("not implemented")
+var ErrAlreadyOpened = errors.New("already opened")
 
 // NewFile initializes an File object.
 func NewFile(fs *Fs, name string) *File {
@@ -206,18 +207,6 @@ func (f *File) Close() error {
 // It returns the number of bytes read and an error, if any.
 // EOF is signaled by a zero count with err set to io.EOF.
 func (f *File) Read(p []byte) (int, error) {
-	if f.streamRead == nil {
-		resp, err := f.fs.s3API.GetObject(&s3.GetObjectInput{
-			Bucket: aws.String(f.fs.bucket),
-			Key:    aws.String(f.name),
-		})
-		if err != nil {
-			return 0, err
-		}
-		f.streamRead = &ReadSeekerEmulator{
-			reader: resp.Body,
-		}
-	}
 	return f.streamRead.Read(p)
 }
 
@@ -254,27 +243,56 @@ func (f *File) Seek(offset int64, whence int) (int64, error) {
 // It returns the number of bytes written and an error, if any.
 // Write returns a non-nil error when n != len(b).
 func (f *File) Write(p []byte) (int, error) {
+	// Keeping this here for now, but we should move this into the file opening
 	if f.streamWrite == nil {
-
-		reader, writer := io.Pipe()
-
-		f.streamWriteCloseErr = make(chan error)
-		f.streamWrite = writer
-
-		uploader := s3manager.NewUploader(f.fs.session)
-		uploader.Concurrency = 1
-
-		go func() {
-			_, err := uploader.Upload(&s3manager.UploadInput{
-				Bucket: aws.String(f.fs.bucket),
-				Key:    aws.String(f.name),
-				Body:   reader,
-			})
-			f.streamWriteCloseErr <- err
-			close(f.streamWriteCloseErr)
-		}()
+		if err := f.openWriteStream(); err != nil {
+			return 0, err
+		}
 	}
 	return f.streamWrite.Write(p)
+}
+
+func (f *File) openWriteStream() error {
+	if f.streamWrite != nil {
+		return ErrAlreadyOpened
+	}
+
+	reader, writer := io.Pipe()
+
+	f.streamWriteCloseErr = make(chan error)
+	f.streamWrite = writer
+
+	uploader := s3manager.NewUploader(f.fs.session)
+	uploader.Concurrency = 1
+
+	go func() {
+		_, err := uploader.Upload(&s3manager.UploadInput{
+			Bucket: aws.String(f.fs.bucket),
+			Key:    aws.String(f.name),
+			Body:   reader,
+		})
+		f.streamWriteCloseErr <- err
+		close(f.streamWriteCloseErr)
+	}()
+	return nil
+}
+
+func (f *File) openReadStream() error {
+	if f.streamRead != nil {
+		return ErrAlreadyOpened
+	}
+
+	resp, err := f.fs.s3API.GetObject(&s3.GetObjectInput{
+		Bucket: aws.String(f.fs.bucket),
+		Key:    aws.String(f.name),
+	})
+	if err != nil {
+		return err
+	}
+	f.streamRead = &ReadSeekerEmulator{
+		reader: resp.Body,
+	}
+	return nil
 }
 
 // WriteAt writes len(p) bytes to the file starting at byte offset off.
