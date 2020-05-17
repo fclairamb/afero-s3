@@ -4,6 +4,7 @@ package s3
 import (
 	"errors"
 	"fmt"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"io"
 	"os"
 	"path/filepath"
@@ -237,20 +238,27 @@ func (f *File) Write(p []byte) (int, error) {
 
 		reader, writer := io.Pipe()
 
-		fakeReader := &ReadSeekerEmulator{
-			reader: reader,
-		}
+		/*
+			fakeReader := &ReadSeekerEmulator{
+				reader: reader,
+			}
+		*/
 
 		f.streamWrite = writer
 
+		uploader := s3manager.NewUploader(f.fs.session)
+		uploader.Concurrency = 1
+
 		go func() {
-			if _, err := f.fs.s3API.PutObject(&s3.PutObjectInput{
-				Bucket:               aws.String(f.fs.bucket),
-				Key:                  aws.String(f.name),
-				Body:                 fakeReader,
-				ServerSideEncryption: aws.String("AES256"),
-			}); err != nil {
-				fmt.Printf("problem writing file: %v", err)
+			_, err := uploader.Upload(&s3manager.UploadInput{
+				Bucket: aws.String(f.fs.bucket),
+				Key:    aws.String(f.name),
+				Body:   reader,
+			})
+			if err != nil {
+				fmt.Println("problem writing file:", err)
+			} else {
+				fmt.Println("Finished writing file !")
 			}
 		}()
 	}
