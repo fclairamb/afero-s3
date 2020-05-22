@@ -15,8 +15,8 @@ jobs:
     services:
       minio:
         image: fclairamb/minio-github-actions
-        env:
-          MINIO_COMMAND: test
+        # env:
+        #  MINIO_COMMAND: server
         ports:
           - 9000:9000
 
