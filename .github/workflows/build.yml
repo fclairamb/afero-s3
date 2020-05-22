@@ -47,6 +47,7 @@ jobs:
         run: go get -v && go build -v ./...
 
       - name: Wait for minio
+        shell: /bin/sh -e {0}
         run: while ! nc -z localhost 9000; do ; sleep 0.5 ; printf "." ; done
 
       - name: Test
