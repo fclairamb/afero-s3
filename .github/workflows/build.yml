@@ -46,6 +46,9 @@ jobs:
       - name: Build
         run: go get -v && go build -v ./...
 
+      - name: Wait for minio
+        run: while ! nc -z localhost 9000; do ; sleep 0.5 ; printf "." ; done
+
       - name: Test
         # We need GCC because of the "go test -race"
         # env:
