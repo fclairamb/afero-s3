@@ -3,15 +3,15 @@ package s3
 
 import (
 	"bytes"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
 	"io/ioutil"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/spf13/afero"
 )
 
@@ -79,10 +79,8 @@ func TestFile(t *testing.T) {
 
 		if data, errRead := ioutil.ReadAll(file); errRead != nil {
 			t.Fatal("Could not write file:", errRead)
-		} else {
-			if bytes.Compare(fileContent, data) != 0 {
-				t.Fatal("Invalid content")
-			}
+		} else if !bytes.Equal(fileContent, data) {
+			t.Fatal("Invalid content")
 		}
 
 		if errClose := file.Close(); errClose != nil {
