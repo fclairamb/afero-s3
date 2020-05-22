@@ -65,11 +65,11 @@ func (f *File) Readdir(n int) ([]os.FileInfo, error) {
 	}
 	// ListObjects treats leading slashes as part of the directory name
 	// It also needs a trailing slash to list contents of a directory.
-	name := trimLeadingSlash(f.Name()) + "/"
+	name := trimLeadingSlash(f.Name()) // + "/"
 
 	// For the root of the bucket, we need to remove any prefix
-	if name == "/" {
-		name = ""
+	if name != "" {
+		name += "/"
 	}
 	output, err := f.fs.s3API.ListObjectsV2(&s3.ListObjectsV2Input{
 		ContinuationToken: f.readdirContinuationToken,
@@ -195,13 +195,19 @@ func (f *File) Close() error {
 	}
 
 	// Or maybe we don't have anything to close
-	return afero.ErrFileClosed
+	return nil
 }
 
 // Read reads up to len(b) bytes from the File.
 // It returns the number of bytes read and an error, if any.
 // EOF is signaled by a zero count with err set to io.EOF.
 func (f *File) Read(p []byte) (int, error) {
+	if f.streamRead == nil {
+		if err := f.openReadStream(); err != nil {
+			return 0, err
+		}
+	}
+
 	return f.streamRead.Read(p)
 }
 
@@ -261,7 +267,7 @@ func (f *File) openWriteStream() error {
 			Body:   reader,
 		})
 		f.streamWriteCloseErr <- err
-		close(f.streamWriteCloseErr)
+		// close(f.streamWriteCloseErr)
 	}()
 	return nil
 }

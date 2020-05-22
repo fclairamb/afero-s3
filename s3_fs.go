@@ -71,13 +71,12 @@ func (fs Fs) MkdirAll(path string, perm os.FileMode) error {
 }
 
 // Open a file for reading.
-// If the file doesn't exist, Open will create the file.
 func (fs *Fs) Open(name string) (afero.File, error) {
 	if _, err := fs.Stat(name); err != nil {
 		if os.IsNotExist(err) {
 			return fs.OpenFile(name, os.O_CREATE, 0777)
 		}
-		return (*File)(nil), err
+		return nil, err
 	}
 	return fs.OpenFile(name, os.O_RDONLY, 0777)
 }
@@ -96,23 +95,16 @@ func (fs *Fs) OpenFile(name string, flag int, perm os.FileMode) (afero.File, err
 		return nil, ErrNotSupported
 	}
 
-	// We don't really support anything else than creating a file
-	/*
-		if flag&os.O_CREATE != 0 {
-			if _, err := file.WriteString(""); err != nil {
-				return file, err
-			}
-		}
-	*/
-
+	// We either write
 	if flag&os.O_WRONLY != 0 {
 		return file, file.openWriteStream()
 	}
 
-	return file, file.openReadStream()
+	// Or read
+	return file, nil // file.openReadStream()
 }
 
-// Remove a file.
+// Remove a file
 func (fs Fs) Remove(name string) error {
 	if _, err := fs.Stat(name); err != nil {
 		return err
