@@ -155,7 +155,7 @@ func TestFileSeek(t *testing.T) {
 	{
 		randomReader := NewLimitedReader(rand.New(rand.NewSource(0)), size)
 		{ // We skip 5MB by reading them
-			buffer := make([]byte, 1024*1024)
+			buffer := make([]byte, 1*1024*1024)
 			for i := 0; i < 5; i++ {
 				if _, err := randomReader.Read(buffer); err != nil {
 					t.Fatal("Cannot read", err)
@@ -169,12 +169,12 @@ func TestFileSeek(t *testing.T) {
 			t.Fatal("Cannot open", errOpen)
 		}
 
-		if _, err := file.Seek(5*1024*1025, io.SeekCurrent); err != nil {
-			t.Fatal("Cannot seek", err)
+		if _, err := file.Seek(5*1024*1024, io.SeekCurrent); err != nil {
+			t.Fatal("Cannot seek:", err)
 		}
 
-		if ok, _ := ReadersEqual(randomReader, file); !ok {
-			t.Fatal("Stream are not equal")
+		if ok, err := ReadersEqual(randomReader, file); !ok || err != nil {
+			t.Fatal("Stream are not equal:", err)
 		}
 
 		if err := file.Close(); err != nil {

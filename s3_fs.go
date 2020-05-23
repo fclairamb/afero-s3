@@ -88,9 +88,11 @@ func (fs Fs) MkdirAll(path string, perm os.FileMode) error {
 
 // Open a file for reading.
 func (fs *Fs) Open(name string) (afero.File, error) {
-	if _, err := fs.Stat(name); err != nil {
-		return nil, err
-	}
+	/*
+		if _, err := fs.Stat(name); err != nil {
+			return nil, err
+		}
+	*/
 	return fs.OpenFile(name, os.O_RDONLY, 0777)
 }
 
@@ -118,8 +120,15 @@ func (fs *Fs) OpenFile(name string, flag int, perm os.FileMode) (afero.File, err
 		return file, file.openWriteStream()
 	}
 
-	// Or read
-	return file, nil // file.openReadStream()
+	info, err := fs.Stat(name)
+	if err != nil {
+		return nil, err
+	}
+
+	if info.IsDir() {
+		return file, nil
+	}
+	return file, file.openReadStream()
 }
 
 // Remove a file
