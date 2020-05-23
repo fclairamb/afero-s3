@@ -309,10 +309,8 @@ func TestRename(t *testing.T) {
 	} else {
 		if _, errWriteString := file.WriteString("Hello world !"); errWriteString != nil {
 			t.Fatal("Couldn't write:", errWriteString)
-		} else {
-			if errClose := file.Close(); errClose != nil {
-				t.Fatal("Couldn't close:", errClose)
-			}
+		} else if errClose := file.Close(); errClose != nil {
+			t.Fatal("Couldn't close:", errClose)
 		}
 	}
 
