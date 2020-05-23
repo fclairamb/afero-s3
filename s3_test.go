@@ -3,9 +3,12 @@ package s3
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"math/rand"
 	"os"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -25,6 +28,11 @@ func TestCompatibleOsFileInfo(t *testing.T) {
 	var _ os.FileInfo = (*FileInfo)(nil)
 }
 
+var (
+	bucketBase          = time.Now().UTC().Format("2006-01-02-15-04-05")
+	bucketCounter int32 = 0
+)
+
 func GetFs(t *testing.T) afero.Fs {
 	sess, errSession := session.NewSession(&aws.Config{
 		Credentials:      credentials.NewStaticCredentials("minioadmin", "minioadmin", ""),
@@ -40,7 +48,13 @@ func GetFs(t *testing.T) afero.Fs {
 
 	s3Client := s3.New(sess)
 
-	bucketName := time.Now().UTC().Format("2006-01-02-15-04-05-123456")
+	// Creating a both non-conflicting and quite easy to understand and diagnose bucket name
+	bucketName := fmt.Sprintf(
+		"%s-%s-%d",
+		bucketBase,
+		strings.ToLower(t.Name()),
+		atomic.AddInt32(&bucketCounter, 1),
+	)
 
 	if _, err := s3Client.CreateBucket(&s3.CreateBucketInput{Bucket: aws.String(bucketName)}); err != nil {
 		t.Fatal("Could not create bucket:", err)
