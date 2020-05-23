@@ -15,11 +15,10 @@ import (
 )
 
 // File represents a file in S3.
-// It is not threadsafe.
 // nolint: maligned
 type File struct {
-	fs   *Fs
-	name string
+	fs   *Fs    // Parent file system
+	name string // Name of the file
 
 	// State of the file being Read and Written
 	streamRead          *readSeekerEmulator
@@ -132,11 +131,14 @@ func (f *File) ReaddirAll() ([]os.FileInfo, error) {
 // a non-nil error.
 func (f *File) Readdirnames(n int) ([]string, error) {
 	fi, err := f.Readdir(n)
+	if err != nil {
+		return nil, err
+	}
 	names := make([]string, len(fi))
 	for i, f := range fi {
 		_, names[i] = filepath.Split(f.Name())
 	}
-	return names, err
+	return names, nil
 }
 
 // Stat returns the FileInfo structure describing file.
@@ -202,12 +204,13 @@ func (f *File) Close() error {
 // It returns the number of bytes read and an error, if any.
 // EOF is signaled by a zero count with err set to io.EOF.
 func (f *File) Read(p []byte) (int, error) {
-	if f.streamRead == nil {
-		if err := f.openReadStream(); err != nil {
-			return 0, err
+	/*
+		if f.streamRead == nil {
+			if err := f.openReadStream(); err != nil {
+				return 0, err
+			}
 		}
-	}
-
+	*/
 	return f.streamRead.Read(p)
 }
 
@@ -232,7 +235,7 @@ func (f *File) ReadAt(p []byte, off int64) (n int, err error) {
 func (f *File) Seek(offset int64, whence int) (int64, error) {
 	// In write mode, this isn't supported
 	if f.streamWrite != nil {
-		return 0, ErrNotImplemented
+		return 0, ErrNotSupported
 	}
 	if f.streamRead != nil {
 		return f.streamRead.Seek(offset, whence)

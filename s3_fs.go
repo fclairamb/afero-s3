@@ -88,9 +88,11 @@ func (fs Fs) MkdirAll(path string, perm os.FileMode) error {
 
 // Open a file for reading.
 func (fs *Fs) Open(name string) (afero.File, error) {
-	if _, err := fs.Stat(name); err != nil {
-		return nil, err
-	}
+	/*
+		if _, err := fs.Stat(name); err != nil {
+			return nil, err
+		}
+	*/
 	return fs.OpenFile(name, os.O_RDONLY, 0777)
 }
 
@@ -103,7 +105,11 @@ func (fs *Fs) OpenFile(name string, flag int, perm os.FileMode) (afero.File, err
 		return nil, ErrNotSupported
 	}
 
-	// Appending is not supported
+	// Appending is not supported by S3. It's do-able though by:
+	// - Copying the existing file to a new place (for example $file.previous)
+	// - Writing a new file, streaming the content of the previous file in it
+	// - Writing the data you want to append
+	// Quite network intensive, if used in abondance this would lead to terrible performances.
 	if flag&os.O_APPEND != 0 {
 		return nil, ErrNotSupported
 	}
@@ -118,8 +124,15 @@ func (fs *Fs) OpenFile(name string, flag int, perm os.FileMode) (afero.File, err
 		return file, file.openWriteStream()
 	}
 
-	// Or read
-	return file, nil // file.openReadStream()
+	info, err := fs.Stat(name)
+	if err != nil {
+		return nil, err
+	}
+
+	if info.IsDir() {
+		return file, nil
+	}
+	return file, file.openReadStream()
 }
 
 // Remove a file
@@ -174,10 +187,9 @@ func (fs Fs) Rename(oldname, newname string) error {
 		return nil
 	}
 	_, err := fs.s3API.CopyObject(&s3.CopyObjectInput{
-		Bucket:               aws.String(fs.bucket),
-		CopySource:           aws.String(fs.bucket + oldname),
-		Key:                  aws.String(newname),
-		ServerSideEncryption: aws.String("AES256"),
+		Bucket:     aws.String(fs.bucket),
+		CopySource: aws.String(fs.bucket + oldname),
+		Key:        aws.String(newname),
 	})
 	if err != nil {
 		return err
@@ -258,12 +270,13 @@ func (fs Fs) statDirectory(name string) (os.FileInfo, error) {
 	return NewFileInfo(filepath.Base(name), true, 0, time.Time{}), nil
 }
 
-// Chmod is TODO
-func (Fs) Chmod(name string, mode os.FileMode) error {
-	return errors.New("not implemented")
+// Chmod doesn't exists in S3 but could be implemented by analyzing ACLs
+func (Fs) Chmod(string, os.FileMode) error {
+	return ErrNotSupported
 }
 
-// Chtimes is TODO
-func (Fs) Chtimes(name string, atime time.Time, mtime time.Time) error {
-	return errors.New("not implemented")
+// Chtimes could be implemented if needed, but that would require to override object properties using metadata,
+// which makes it a non-standard solution
+func (Fs) Chtimes(string, time.Time, time.Time) error {
+	return ErrNotSupported
 }

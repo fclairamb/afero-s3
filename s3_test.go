@@ -82,7 +82,7 @@ func GetFs(t *testing.T) afero.Fs {
 	return fs
 }
 
-func testWriteReadFile(t *testing.T, fs afero.Fs, name string, size int) {
+func testWriteFile(t *testing.T, fs afero.Fs, name string, size int) {
 	t.Logf("Working on %s with %d bytes", name, size)
 
 	{ // First we write the file
@@ -123,63 +123,116 @@ func testWriteReadFile(t *testing.T, fs afero.Fs, name string, size int) {
 }
 
 func TestFileWrite(t *testing.T) {
-	s3Fs := GetFs(t)
-	testWriteReadFile(t, s3Fs, "/file-1K", 1024)
-	testWriteReadFile(t, s3Fs, "/file-1M", 1*1024*1024)
-	testWriteReadFile(t, s3Fs, "/file-10M", 10*1024*1024)
-	testWriteReadFile(t, s3Fs, "/file-100M", 100*1024*1024)
+	fs := GetFs(t)
+	testWriteFile(t, fs, "/file-1K", 1024)
+	testWriteFile(t, fs, "/file-1M", 1*1024*1024)
+	testWriteFile(t, fs, "/file-10M", 10*1024*1024)
+	testWriteFile(t, fs, "/file-100M", 100*1024*1024)
+}
+
+func TestFileSeek(t *testing.T) {
+	fs := GetFs(t)
+	size := 10 * 1024 * 1024 // 10MB
+	name := "file-10M"
+
+	{ // First we write the file
+		randomReader := NewLimitedReader(rand.New(rand.NewSource(0)), size)
+
+		file, errOpen := fs.OpenFile(name, os.O_WRONLY, 0777)
+		if errOpen != nil {
+			t.Fatal("Could not open file:", errOpen)
+		}
+
+		if _, errWrite := io.Copy(file, randomReader); errWrite != nil {
+			t.Fatal("Could not write file:", errWrite)
+		}
+
+		if errClose := file.Close(); errClose != nil {
+			t.Fatal("Couldn't close file", errClose)
+		}
+	}
+
+	{
+		randomReader := NewLimitedReader(rand.New(rand.NewSource(0)), size)
+		{ // We skip 5MB by reading them
+			buffer := make([]byte, 1*1024*1024)
+			for i := 0; i < 5; i++ {
+				if _, err := randomReader.Read(buffer); err != nil {
+					t.Fatal("Cannot read", err)
+				}
+			}
+		}
+
+		file, errOpen := fs.OpenFile(name, os.O_RDONLY, 0777)
+
+		if errOpen != nil {
+			t.Fatal("Cannot open", errOpen)
+		}
+
+		if _, err := file.Seek(5*1024*1024, io.SeekCurrent); err != nil {
+			t.Fatal("Cannot seek:", err)
+		}
+
+		if ok, err := ReadersEqual(randomReader, file); !ok || err != nil {
+			t.Fatal("Stream are not equal:", err)
+		}
+
+		if err := file.Close(); err != nil {
+			t.Fatal("Cannot close", err)
+		}
+	}
 }
 
 func TestFileCreate(t *testing.T) {
-	s3Fs := GetFs(t)
+	fs := GetFs(t)
 
-	if _, err := s3Fs.Stat("/file1"); err == nil {
+	if _, err := fs.Stat("/file1"); err == nil {
 		t.Fatal("We should'nt be able to get a file info at this stage")
 	}
 
-	if file, err := s3Fs.Create("/file1"); err != nil {
+	if file, err := fs.Create("/file1"); err != nil {
 		t.Fatal("Could not create file:", err)
 	} else if err := file.Close(); err != nil {
 		t.Fatal("Couldn't close file:", err)
 	}
 
-	if stat, err := s3Fs.Stat("/file1"); err != nil {
+	if stat, err := fs.Stat("/file1"); err != nil {
 		t.Fatal("Could not access file:", err)
 	} else if stat.Size() != 0 {
 		t.Fatal("File should be empty")
 	}
 
-	if err := s3Fs.Remove("/file1"); err != nil {
+	if err := fs.Remove("/file1"); err != nil {
 		t.Fatal("Could not delete file:", err)
 	}
 
-	if _, err := s3Fs.Stat("/file1"); err == nil {
+	if _, err := fs.Stat("/file1"); err == nil {
 		t.Fatal("Should not be able to access file")
 	}
 }
 
 func TestRemoveAll(t *testing.T) {
-	s3Fs := GetFs(t)
+	fs := GetFs(t)
 
-	if err := s3Fs.Mkdir("/dir1", 0750); err != nil {
+	if err := fs.Mkdir("/dir1", 0750); err != nil {
 		t.Fatal("Could not create dir1:", err)
 	}
 
-	if err := s3Fs.Mkdir("/dir1/dir2", 0750); err != nil {
+	if err := fs.Mkdir("/dir1/dir2", 0750); err != nil {
 		t.Fatal("Could not create dir2:", err)
 	}
 
-	if file, err := s3Fs.Create("/dir1/file1"); err != nil {
+	if file, err := fs.Create("/dir1/file1"); err != nil {
 		t.Fatal("Could not create dir2:", err)
 	} else if err := file.Close(); err != nil {
 		t.Fatal("Could not close /dir1/file1 err:", err)
 	}
 
-	if err := s3Fs.RemoveAll("/dir1"); err != nil {
+	if err := fs.RemoveAll("/dir1"); err != nil {
 		t.Fatal("Could not delete all files:", err)
 	}
 
-	if root, err := s3Fs.Open("/"); err != nil {
+	if root, err := fs.Open("/"); err != nil {
 		t.Fatal("Could not access root:", root)
 	} else {
 		if files, err := root.Readdir(-1); err != nil {
@@ -191,33 +244,33 @@ func TestRemoveAll(t *testing.T) {
 }
 
 func TestMkdirAll(t *testing.T) {
-	s3Fs := GetFs(t)
-	if err := s3Fs.MkdirAll("/dir3/dir4", 0755); err != nil {
+	fs := GetFs(t)
+	if err := fs.MkdirAll("/dir3/dir4", 0755); err != nil {
 		t.Fatal("Could not perform MkdirAll:", err)
 	}
 
-	if _, err := s3Fs.Stat("/dir3/dir4"); err != nil {
+	if _, err := fs.Stat("/dir3/dir4"); err != nil {
 		t.Fatal("Could not read dir4:", err)
 	}
 }
 
 func TestDirHandle(t *testing.T) {
-	s3Fs := GetFs(t)
+	fs := GetFs(t)
 
 	// We create a "dir1" directory
-	if err := s3Fs.Mkdir("/dir1", 0750); err != nil {
+	if err := fs.Mkdir("/dir1", 0750); err != nil {
 		t.Fatal("Could not create dir:", err)
 	}
 
 	// Then create a "file1" file in it
-	if file, err := s3Fs.Create("/dir1/file1"); err != nil {
+	if file, err := fs.Create("/dir1/file1"); err != nil {
 		t.Fatal("Could not create file:", err)
 	} else if err := file.Close(); err != nil {
 		t.Fatal("Couldn't close file:", err)
 	}
 
 	// Opening "dir1" should work
-	if dir1, err := s3Fs.Open("/dir1"); err != nil {
+	if dir1, err := fs.Open("/dir1"); err != nil {
 		t.Fatal("Could not open dir1:", err)
 	} else {
 		// Listing files should be OK too
@@ -229,8 +282,82 @@ func TestDirHandle(t *testing.T) {
 	}
 
 	// Opening "dir2" should fail
-	if _, err := s3Fs.Open("/dir2"); err == nil {
+	if _, err := fs.Open("/dir2"); err == nil {
 		t.Fatal("Opening /dir2 should have triggered an error !")
+	}
+}
+
+func testCreateFile(t *testing.T, fs afero.Fs, name string, content string) {
+	file, err := fs.OpenFile(name, os.O_WRONLY, 0750)
+	if err != nil {
+		t.Fatal("Could not open file", name, ":", err)
+	}
+	if _, err := file.WriteString(content); err != nil {
+		t.Fatal("Could not write content to file", err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal("Could not close file")
+	}
+}
+
+func TestRename(t *testing.T) {
+	fs := GetFs(t)
+
+	if errMkdirAll := fs.MkdirAll("/dir1/dir2", 0750); errMkdirAll != nil {
+	} else if file, errOpenFile := fs.OpenFile("/dir1/dir2/file1", os.O_WRONLY, 0750); errOpenFile != nil {
+		t.Fatal("Couldn't open file:", errOpenFile)
+	} else {
+		if _, errWriteString := file.WriteString("Hello world !"); errWriteString != nil {
+			t.Fatal("Couldn't write:", errWriteString)
+		} else if errClose := file.Close(); errClose != nil {
+			t.Fatal("Couldn't close:", errClose)
+		}
+	}
+
+	if errRename := fs.Rename("/dir1/dir2/file1", "/dir1/dir2/file2"); errRename != nil {
+		t.Fatal("Couldn't rename file err:", errRename)
+	}
+
+	if _, err := fs.Stat("/dir1/dir2/file1"); err == nil {
+		t.Fatal("File shouldn't exist anymore")
+	}
+
+	if _, err := fs.Stat("/dir1/dir2/file2"); err != nil {
+		t.Fatal("Couldn't fetch file info:", err)
+	}
+
+	// Renaming of a directory isn't tested because it's not supported by afero in the first place
+}
+
+func TestFileTime(t *testing.T) {
+	fs := GetFs(t)
+	name := "/dir1/file1"
+	beforeCreate := time.Now().UTC()
+	// Well, we have a 1-second precision
+	time.Sleep(time.Second)
+	testCreateFile(t, fs, name, "Hello world !")
+	time.Sleep(time.Second)
+	afterCreate := time.Now().UTC()
+	var modTime time.Time
+	if info, errStat := fs.Stat(name); errStat != nil {
+		t.Fatal("Couldn't stat", name, ":", errStat)
+	} else {
+		modTime = info.ModTime()
+	}
+	if modTime.Before(beforeCreate) || modTime.After(afterCreate) {
+		t.Fatal("Invalid dates", "modTime =", modTime, "before =", beforeCreate, "after =", afterCreate)
+	}
+	if err := fs.Chtimes(name, time.Now().UTC(), time.Now().UTC()); err == nil {
+		t.Fatal("If Chtimes is supported, we should have a check here")
+	}
+}
+
+func TestChmod(t *testing.T) {
+	fs := GetFs(t)
+	name := "/dir1/file1"
+	testCreateFile(t, fs, name, "Hello world !")
+	if err := fs.Chmod(name, 0750); err == nil {
+		t.Fatal("If Chmod is supported, we should have a check here")
 	}
 }
 
@@ -284,4 +411,20 @@ func (r *LimitedReader) Read(buffer []byte) (int, error) {
 		r.offset += read
 	}
 	return read, err
+}
+
+func TestMain(m *testing.M) {
+	// call flag.Parse() here if TestMain uses flags
+	rc := m.Run()
+
+	// rc 0 means we've passed,
+	// and CoverMode will be non empty if run with -cover
+	if rc == 0 && testing.CoverMode() != "" {
+		c := testing.Coverage()
+		if c < 0.63 {
+			fmt.Printf("Tests passed but coverage failed at %0.2f\n", c)
+			rc = -1
+		}
+	}
+	os.Exit(rc)
 }
