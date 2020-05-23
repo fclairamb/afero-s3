@@ -105,7 +105,11 @@ func (fs *Fs) OpenFile(name string, flag int, perm os.FileMode) (afero.File, err
 		return nil, ErrNotSupported
 	}
 
-	// Appending is not supported
+	// Appending is not supported by S3. It's do-able though by:
+	// - Copying the existing file to a new place (for example $file.previous)
+	// - Writing a new file, streaming the content of the previous file in it
+	// - Writing the data you want to append
+	// Quite network intensive, if used in abondance this would lead to terrible performances.
 	if flag&os.O_APPEND != 0 {
 		return nil, ErrNotSupported
 	}
