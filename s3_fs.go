@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/spf13/afero"
@@ -46,10 +46,14 @@ func (Fs) Name() string { return "Fs" }
 
 // Create a file.
 func (fs Fs) Create(name string) (afero.File, error) {
-	file, err := fs.Open(name)
+	file, err := fs.OpenFile(name, os.O_WRONLY, 0750)
 	if err != nil {
 		return file, err
 	}
+	if err := file.Close(); err != nil {
+		return file, err
+	}
+
 	// Create(), like all of S3, is eventually consistent.
 	// To protect against unexpected behavior, have this method
 	// wait until S3 reports the object exists.
@@ -73,9 +77,6 @@ func (fs Fs) MkdirAll(path string, perm os.FileMode) error {
 // Open a file for reading.
 func (fs *Fs) Open(name string) (afero.File, error) {
 	if _, err := fs.Stat(name); err != nil {
-		if os.IsNotExist(err) {
-			return fs.OpenFile(name, os.O_CREATE, 0777)
-		}
 		return nil, err
 	}
 	return fs.OpenFile(name, os.O_RDONLY, 0777)
@@ -191,9 +192,11 @@ func (fs Fs) Stat(name string) (os.FileInfo, error) {
 		Key:    aws.String(name),
 	})
 	if err != nil {
-		if strings.Contains(err.Error(), "404") {
-			statDir, errStat := fs.statDirectory(name)
-			return statDir, errStat
+		if errRequestFailure, ok := err.(awserr.RequestFailure); ok {
+			if errRequestFailure.StatusCode() == 404 {
+				statDir, errStat := fs.statDirectory(name)
+				return statDir, errStat
+			}
 		}
 		return FileInfo{}, &os.PathError{
 			Op:   "stat",
@@ -229,7 +232,7 @@ func (fs Fs) statDirectory(name string) (os.FileInfo, error) {
 		}
 	}
 	if *out.KeyCount == 0 && name != "" {
-		return FileInfo{}, &os.PathError{
+		return nil, &os.PathError{
 			Op:   "stat",
 			Path: name,
 			Err:  os.ErrNotExist,

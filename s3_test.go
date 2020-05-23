@@ -3,7 +3,8 @@ package s3
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
+	"math/rand"
 	"os"
 	"testing"
 	"time"
@@ -24,7 +25,7 @@ func TestCompatibleOsFileInfo(t *testing.T) {
 	var _ os.FileInfo = (*FileInfo)(nil)
 }
 
-func TestFile(t *testing.T) {
+func GetFs(t *testing.T) afero.Fs {
 	sess, errSession := session.NewSession(&aws.Config{
 		Credentials:      credentials.NewStaticCredentials("minioadmin", "minioadmin", ""),
 		Endpoint:         aws.String("http://localhost:9000"),
@@ -33,36 +34,33 @@ func TestFile(t *testing.T) {
 		S3ForcePathStyle: aws.Bool(true),
 	})
 
-	bucketName := time.Now().UTC().Format("2006-01-02-15-04-05-123456")
-
 	if errSession != nil {
 		t.Fatal("Could not create session:", errSession)
 	}
 
 	s3Client := s3.New(sess)
-	_, errCreateBucket := s3Client.CreateBucket(&s3.CreateBucketInput{
-		Bucket: aws.String(bucketName),
-	})
 
-	if errCreateBucket != nil {
-		t.Fatal("Could not create bucket:", errCreateBucket)
+	bucketName := time.Now().UTC().Format("2006-01-02-15-04-05-123456")
+
+	if _, err := s3Client.CreateBucket(&s3.CreateBucketInput{Bucket: aws.String(bucketName)}); err != nil {
+		t.Fatal("Could not create bucket:", err)
 	}
 
-	s3Fs := NewFs(bucketName, sess)
+	return NewFs(bucketName, sess)
+}
 
-	if err := s3Fs.Mkdir("/dir1", 0750); err != nil {
-		t.Fatal("Could not create dir:", err)
-	}
-
-	fileContent := []byte("File content")
+func testWriteReadFile(t *testing.T, fs afero.Fs, name string, size int) {
+	t.Logf("Working on %s with %d bytes", name, size)
 
 	{ // First we write the file
-		file, errOpen := s3Fs.OpenFile("/dir1/file1", os.O_WRONLY, 0777)
+		reader1 := NewLimitedReader(rand.New(rand.NewSource(0)), size)
+
+		file, errOpen := fs.OpenFile(name, os.O_WRONLY, 0777)
 		if errOpen != nil {
 			t.Fatal("Could not open file:", errOpen)
 		}
 
-		if _, errWrite := file.Write(fileContent); errWrite != nil {
+		if _, errWrite := io.Copy(file, reader1); errWrite != nil {
 			t.Fatal("Could not write file:", errWrite)
 		}
 
@@ -72,19 +70,108 @@ func TestFile(t *testing.T) {
 	}
 
 	{ // Then we read the file
-		file, errOpen := s3Fs.OpenFile("/dir1/file1", os.O_RDONLY, 0777)
+		reader2 := NewLimitedReader(rand.New(rand.NewSource(0)), size)
+
+		file, errOpen := fs.OpenFile(name, os.O_RDONLY, 0777)
 		if errOpen != nil {
 			t.Fatal("Could not open file:", errOpen)
 		}
 
-		if data, errRead := ioutil.ReadAll(file); errRead != nil {
-			t.Fatal("Could not write file:", errRead)
-		} else if !bytes.Equal(fileContent, data) {
-			t.Fatal("Invalid content")
+		if ok, err := ReadersEqual(file, reader2); !ok || err != nil {
+			t.Fatal("Could not equal reader:", err)
 		}
 
 		if errClose := file.Close(); errClose != nil {
 			t.Fatal("Couldn't close file", errClose)
 		}
 	}
+}
+
+func TestFileWrite(t *testing.T) {
+	s3Fs := GetFs(t)
+
+	if err := s3Fs.Mkdir("/dir1", 0750); err != nil {
+		t.Fatal("Could not create dir:", err)
+	}
+
+	testWriteReadFile(t, s3Fs, "/dir1/file-20", 20)
+	testWriteReadFile(t, s3Fs, "/dir1/file-2M", 2*1024*1024)
+	testWriteReadFile(t, s3Fs, "/dir1/file-200M", 200*1024*1024)
+}
+
+func TestDirHandle(t *testing.T) {
+	s3Fs := GetFs(t)
+
+	if err := s3Fs.Mkdir("/dir1", 0750); err != nil {
+		t.Fatal("Could not create dir:", err)
+	}
+
+	if _, err := s3Fs.Create("/dir1/file1"); err != nil {
+		t.Fatal("Could not create file:", err)
+	}
+
+	if dir1, err := s3Fs.Open("/dir1"); err != nil {
+		t.Fatal("Could not open dir1 ")
+	} else {
+		if files, errReaddir := dir1.Readdir(-1); errReaddir != nil {
+			t.Fatal("Could not read dir")
+		} else if len(files) != 1 || files[0].Name() != "file1" {
+			t.Fatal("Listed files are incorrect !")
+		}
+	}
+
+	if _, err := s3Fs.Open("/dir2"); err == nil {
+		t.Fatal("Opening /dir2 should have triggered an error !")
+	}
+}
+
+func ReadersEqual(r1, r2 io.Reader) (bool, error) {
+	const chunkSize = 8 * 1024 // 8 KB
+	buf1 := make([]byte, chunkSize)
+	buf2 := make([]byte, chunkSize)
+	for {
+		n1, err1 := io.ReadFull(r1, buf1)
+		n2, err2 := io.ReadFull(r2, buf2)
+		if err1 != nil && err1 != io.EOF && err1 != io.ErrUnexpectedEOF {
+			return false, err1
+		}
+		if err2 != nil && err2 != io.EOF && err2 != io.ErrUnexpectedEOF {
+			return false, err2
+		}
+		if (err1 != nil) != (err2 != nil) || !bytes.Equal(buf1[0:n1], buf2[0:n2]) {
+			return false, nil
+		}
+		if err1 != nil {
+			return true, nil
+		}
+	}
+}
+
+type LimitedReader struct {
+	reader io.Reader
+	size   int
+	offset int
+}
+
+func NewLimitedReader(reader io.Reader, limit int) *LimitedReader {
+	return &LimitedReader{
+		reader: reader,
+		size:   limit,
+	}
+}
+
+func (r *LimitedReader) Read(buffer []byte) (int, error) {
+	maxRead := r.size - r.offset
+
+	if maxRead == 0 {
+		return 0, io.EOF
+	} else if maxRead < len(buffer) {
+		buffer = buffer[0:maxRead]
+	}
+
+	read, err := r.reader.Read(buffer)
+	if err == nil {
+		r.offset += read
+	}
+	return read, err
 }
