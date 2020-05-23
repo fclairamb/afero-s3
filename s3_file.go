@@ -103,7 +103,7 @@ func (f *File) Readdir(n int) ([]os.FileInfo, error) {
 
 // ReaddirAll provides list of file info.
 func (f *File) ReaddirAll() ([]os.FileInfo, error) {
-	fileInfos := []os.FileInfo{}
+	var fileInfos []os.FileInfo
 	for {
 		infos, err := f.Readdir(100)
 		fileInfos = append(fileInfos, infos...)

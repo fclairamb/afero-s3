@@ -2,6 +2,7 @@
 package s3
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -46,11 +47,19 @@ func (Fs) Name() string { return "Fs" }
 
 // Create a file.
 func (fs Fs) Create(name string) (afero.File, error) {
+	{ // It's faster to trigger an explicit empty put object than opening a file for write, closing it and re-opening it
+		_, errPut := fs.s3API.PutObject(&s3.PutObjectInput{
+			Bucket: aws.String(fs.bucket),
+			Key:    aws.String(name),
+			Body:   bytes.NewReader([]byte{}),
+		})
+		if errPut != nil {
+			return nil, errPut
+		}
+	}
+
 	file, err := fs.OpenFile(name, os.O_WRONLY, 0750)
 	if err != nil {
-		return file, err
-	}
-	if err := file.Close(); err != nil {
 		return file, err
 	}
 
@@ -65,7 +74,10 @@ func (fs Fs) Create(name string) (afero.File, error) {
 
 // Mkdir makes a directory in S3.
 func (fs Fs) Mkdir(name string, perm os.FileMode) error {
-	_, err := fs.OpenFile(fmt.Sprintf("%s/", filepath.Clean(name)), os.O_CREATE, perm)
+	file, err := fs.OpenFile(fmt.Sprintf("%s/", filepath.Clean(name)), os.O_CREATE, perm)
+	if err == nil {
+		err = file.Close()
+	}
 	return err
 }
 
@@ -94,6 +106,11 @@ func (fs *Fs) OpenFile(name string, flag int, perm os.FileMode) (afero.File, err
 	// Appending is not supported
 	if flag&os.O_APPEND != 0 {
 		return nil, ErrNotSupported
+	}
+
+	// Creating is basically a write
+	if flag&os.O_CREATE != 0 {
+		flag |= os.O_WRONLY
 	}
 
 	// We either write

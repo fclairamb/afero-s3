@@ -60,13 +60,31 @@ func GetFs(t *testing.T) afero.Fs {
 		t.Fatal("Could not create bucket:", err)
 	}
 
-	return NewFs(bucketName, sess)
+	fs := NewFs(bucketName, sess)
+
+	t.Cleanup(func() {
+		if err := fs.RemoveAll("/"); err != nil {
+			t.Fatal("Could not cleanup bucket:", err)
+			return
+		}
+
+		// The minio implementation makes the RemoveAll("/") also delete the simulated S3 bucket, so we *should* but
+		// *can't* use the bucket deletion.
+		/*
+			if _, err := s3Client.DeleteBucket(&s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
+				t.Fatal("Could not delete bucket:", err)
+			}
+		*/
+	})
+
+	return fs
 }
 
 func testWriteReadFile(t *testing.T, fs afero.Fs, name string, size int) {
 	t.Logf("Working on %s with %d bytes", name, size)
 
 	{ // First we write the file
+		t.Log("  Writing file")
 		reader1 := NewLimitedReader(rand.New(rand.NewSource(0)), size)
 
 		file, errOpen := fs.OpenFile(name, os.O_WRONLY, 0777)
@@ -84,6 +102,7 @@ func testWriteReadFile(t *testing.T, fs afero.Fs, name string, size int) {
 	}
 
 	{ // Then we read the file
+		t.Log("  Reading file")
 		reader2 := NewLimitedReader(rand.New(rand.NewSource(0)), size)
 
 		file, errOpen := fs.OpenFile(name, os.O_RDONLY, 0777)
@@ -103,9 +122,10 @@ func testWriteReadFile(t *testing.T, fs afero.Fs, name string, size int) {
 
 func TestFileWrite(t *testing.T) {
 	s3Fs := GetFs(t)
-	testWriteReadFile(t, s3Fs, "/file-20", 20)
-	testWriteReadFile(t, s3Fs, "/file-2M", 2*1024*1024)
-	testWriteReadFile(t, s3Fs, "/file-200M", 200*1024*1024)
+	testWriteReadFile(t, s3Fs, "/file-1K", 1024)
+	testWriteReadFile(t, s3Fs, "/file-1M", 1*1024*1024)
+	testWriteReadFile(t, s3Fs, "/file-10M", 10*1024*1024)
+	testWriteReadFile(t, s3Fs, "/file-100M", 100*1024*1024)
 }
 
 func TestFileCreate(t *testing.T) {
@@ -115,31 +135,90 @@ func TestFileCreate(t *testing.T) {
 		t.Fatal("We should'nt be able to get a file info at this stage")
 	}
 
-	if _, err := s3Fs.Create("/file1"); err != nil {
-		t.Fatal("Could not create file")
+	if file, err := s3Fs.Create("/file1"); err != nil {
+		t.Fatal("Could not create file:", err)
+	} else if err := file.Close(); err != nil {
+		t.Fatal("Couldn't close file:", err)
 	}
 
 	if stat, err := s3Fs.Stat("/file1"); err != nil {
-		t.Fatal("Could not access file")
+		t.Fatal("Could not access file:", err)
 	} else if stat.Size() != 0 {
 		t.Fatal("File should be empty")
+	}
+
+	if err := s3Fs.Remove("/file1"); err != nil {
+		t.Fatal("Could not delete file:", err)
+	}
+
+	if _, err := s3Fs.Stat("/file1"); err == nil {
+		t.Fatal("Should not be able to access file")
+	}
+}
+
+func TestRemoveAll(t *testing.T) {
+	s3Fs := GetFs(t)
+
+	if err := s3Fs.Mkdir("/dir1", 0750); err != nil {
+		t.Fatal("Could not create dir1:", err)
+	}
+
+	if err := s3Fs.Mkdir("/dir1/dir2", 0750); err != nil {
+		t.Fatal("Could not create dir2:", err)
+	}
+
+	if file, err := s3Fs.Create("/dir1/file1"); err != nil {
+		t.Fatal("Could not create dir2:", err)
+	} else if err := file.Close(); err != nil {
+		t.Fatal("Could not close /dir1/file1 err:", err)
+	}
+
+	if err := s3Fs.RemoveAll("/dir1"); err != nil {
+		t.Fatal("Could not delete all files:", err)
+	}
+
+	if root, err := s3Fs.Open("/"); err != nil {
+		t.Fatal("Could not access root:", root)
+	} else {
+		if files, err := root.Readdir(-1); err != nil {
+			t.Fatal("Could not readdir:", err)
+		} else if len(files) != 0 {
+			t.Fatal("We should not have any files !")
+		}
+	}
+}
+
+func TestMkdirAll(t *testing.T) {
+	s3Fs := GetFs(t)
+	if err := s3Fs.MkdirAll("/dir3/dir4", 0755); err != nil {
+		t.Fatal("Could not perform MkdirAll:", err)
+	}
+
+	if _, err := s3Fs.Stat("/dir3/dir4"); err != nil {
+		t.Fatal("Could not read dir4:", err)
 	}
 }
 
 func TestDirHandle(t *testing.T) {
 	s3Fs := GetFs(t)
 
+	// We create a "dir1" directory
 	if err := s3Fs.Mkdir("/dir1", 0750); err != nil {
 		t.Fatal("Could not create dir:", err)
 	}
 
-	if _, err := s3Fs.Create("/dir1/file1"); err != nil {
+	// Then create a "file1" file in it
+	if file, err := s3Fs.Create("/dir1/file1"); err != nil {
 		t.Fatal("Could not create file:", err)
+	} else if err := file.Close(); err != nil {
+		t.Fatal("Couldn't close file:", err)
 	}
 
+	// Opening "dir1" should work
 	if dir1, err := s3Fs.Open("/dir1"); err != nil {
-		t.Fatal("Could not open dir1 ")
+		t.Fatal("Could not open dir1:", err)
 	} else {
+		// Listing files should be OK too
 		if files, errReaddir := dir1.Readdir(-1); errReaddir != nil {
 			t.Fatal("Could not read dir")
 		} else if len(files) != 1 || files[0].Name() != "file1" {
@@ -147,6 +226,7 @@ func TestDirHandle(t *testing.T) {
 		}
 	}
 
+	// Opening "dir2" should fail
 	if _, err := s3Fs.Open("/dir2"); err == nil {
 		t.Fatal("Opening /dir2 should have triggered an error !")
 	}
