@@ -89,14 +89,27 @@ func testWriteReadFile(t *testing.T, fs afero.Fs, name string, size int) {
 
 func TestFileWrite(t *testing.T) {
 	s3Fs := GetFs(t)
+	testWriteReadFile(t, s3Fs, "/file-20", 20)
+	testWriteReadFile(t, s3Fs, "/file-2M", 2*1024*1024)
+	testWriteReadFile(t, s3Fs, "/file-200M", 200*1024*1024)
+}
 
-	if err := s3Fs.Mkdir("/dir1", 0750); err != nil {
-		t.Fatal("Could not create dir:", err)
+func TestFileCreate(t *testing.T) {
+	s3Fs := GetFs(t)
+
+	if _, err := s3Fs.Stat("/file1"); err == nil {
+		t.Fatal("We should'nt be able to get a file info at this stage")
 	}
 
-	testWriteReadFile(t, s3Fs, "/dir1/file-20", 20)
-	testWriteReadFile(t, s3Fs, "/dir1/file-2M", 2*1024*1024)
-	testWriteReadFile(t, s3Fs, "/dir1/file-200M", 200*1024*1024)
+	if _, err := s3Fs.Create("/file1"); err != nil {
+		t.Fatal("Could not create file")
+	}
+
+	if stat, err := s3Fs.Stat("/file1"); err != nil {
+		t.Fatal("Could not access file")
+	} else if stat.Size() != 0 {
+		t.Fatal("File should be empty")
+	}
 }
 
 func TestDirHandle(t *testing.T) {
@@ -125,6 +138,7 @@ func TestDirHandle(t *testing.T) {
 	}
 }
 
+// Source: rog's code from https://groups.google.com/forum/#!topic/golang-nuts/keG78hYt1I0
 func ReadersEqual(r1, r2 io.Reader) (bool, error) {
 	const chunkSize = 8 * 1024 // 8 KB
 	buf1 := make([]byte, chunkSize)
