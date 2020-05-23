@@ -2,14 +2,15 @@
 package s3
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/spf13/afero"
@@ -46,10 +47,22 @@ func (Fs) Name() string { return "Fs" }
 
 // Create a file.
 func (fs Fs) Create(name string) (afero.File, error) {
-	file, err := fs.Open(name)
+	{ // It's faster to trigger an explicit empty put object than opening a file for write, closing it and re-opening it
+		_, errPut := fs.s3API.PutObject(&s3.PutObjectInput{
+			Bucket: aws.String(fs.bucket),
+			Key:    aws.String(name),
+			Body:   bytes.NewReader([]byte{}),
+		})
+		if errPut != nil {
+			return nil, errPut
+		}
+	}
+
+	file, err := fs.OpenFile(name, os.O_WRONLY, 0750)
 	if err != nil {
 		return file, err
 	}
+
 	// Create(), like all of S3, is eventually consistent.
 	// To protect against unexpected behavior, have this method
 	// wait until S3 reports the object exists.
@@ -61,7 +74,10 @@ func (fs Fs) Create(name string) (afero.File, error) {
 
 // Mkdir makes a directory in S3.
 func (fs Fs) Mkdir(name string, perm os.FileMode) error {
-	_, err := fs.OpenFile(fmt.Sprintf("%s/", filepath.Clean(name)), os.O_CREATE, perm)
+	file, err := fs.OpenFile(fmt.Sprintf("%s/", filepath.Clean(name)), os.O_CREATE, perm)
+	if err == nil {
+		err = file.Close()
+	}
 	return err
 }
 
@@ -71,13 +87,9 @@ func (fs Fs) MkdirAll(path string, perm os.FileMode) error {
 }
 
 // Open a file for reading.
-// If the file doesn't exist, Open will create the file.
 func (fs *Fs) Open(name string) (afero.File, error) {
 	if _, err := fs.Stat(name); err != nil {
-		if os.IsNotExist(err) {
-			return fs.OpenFile(name, os.O_CREATE, 0777)
-		}
-		return (*File)(nil), err
+		return nil, err
 	}
 	return fs.OpenFile(name, os.O_RDONLY, 0777)
 }
@@ -96,23 +108,21 @@ func (fs *Fs) OpenFile(name string, flag int, perm os.FileMode) (afero.File, err
 		return nil, ErrNotSupported
 	}
 
-	// We don't really support anything else than creating a file
-	/*
-		if flag&os.O_CREATE != 0 {
-			if _, err := file.WriteString(""); err != nil {
-				return file, err
-			}
-		}
-	*/
+	// Creating is basically a write
+	if flag&os.O_CREATE != 0 {
+		flag |= os.O_WRONLY
+	}
 
+	// We either write
 	if flag&os.O_WRONLY != 0 {
 		return file, file.openWriteStream()
 	}
 
-	return file, file.openReadStream()
+	// Or read
+	return file, nil // file.openReadStream()
 }
 
-// Remove a file.
+// Remove a file
 func (fs Fs) Remove(name string) error {
 	if _, err := fs.Stat(name); err != nil {
 		return err
@@ -199,9 +209,11 @@ func (fs Fs) Stat(name string) (os.FileInfo, error) {
 		Key:    aws.String(name),
 	})
 	if err != nil {
-		if strings.Contains(err.Error(), "404") {
-			statDir, errStat := fs.statDirectory(name)
-			return statDir, errStat
+		if errRequestFailure, ok := err.(awserr.RequestFailure); ok {
+			if errRequestFailure.StatusCode() == 404 {
+				statDir, errStat := fs.statDirectory(name)
+				return statDir, errStat
+			}
 		}
 		return FileInfo{}, &os.PathError{
 			Op:   "stat",
@@ -237,7 +249,7 @@ func (fs Fs) statDirectory(name string) (os.FileInfo, error) {
 		}
 	}
 	if *out.KeyCount == 0 && name != "" {
-		return FileInfo{}, &os.PathError{
+		return nil, &os.PathError{
 			Op:   "stat",
 			Path: name,
 			Err:  os.ErrNotExist,

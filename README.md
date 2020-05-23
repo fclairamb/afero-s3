@@ -1,6 +1,6 @@
 ## Readme
 
-Provide afero filesystem with S3 as backend.
+Provide afero filesystem with [S3](https://aws.amazon.com/s3/) as backend.
 
 ## Thanks
 

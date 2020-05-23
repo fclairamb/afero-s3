@@ -12,6 +12,13 @@ jobs:
   build:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
+    services:
+      minio:
+        image: fclairamb/minio-github-actions
+        # env:
+        #  MINIO_COMMAND: server
+        ports:
+          - 9000:9000
 
     strategy:
       matrix:
