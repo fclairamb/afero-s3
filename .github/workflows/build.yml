@@ -52,7 +52,7 @@ jobs:
         #   CGO_ENABLED: 0
         run: |
           apt-get update && apt-get install gcc -y
-          go test -race -v ./...
+          go test -race -coverprofile=cover.out -v ./...
 
   # For github to have a unique status check name
   build-status:

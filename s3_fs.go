@@ -174,10 +174,9 @@ func (fs Fs) Rename(oldname, newname string) error {
 		return nil
 	}
 	_, err := fs.s3API.CopyObject(&s3.CopyObjectInput{
-		Bucket:               aws.String(fs.bucket),
-		CopySource:           aws.String(fs.bucket + oldname),
-		Key:                  aws.String(newname),
-		ServerSideEncryption: aws.String("AES256"),
+		Bucket:     aws.String(fs.bucket),
+		CopySource: aws.String(fs.bucket + oldname),
+		Key:        aws.String(newname),
 	})
 	if err != nil {
 		return err
@@ -258,12 +257,13 @@ func (fs Fs) statDirectory(name string) (os.FileInfo, error) {
 	return NewFileInfo(filepath.Base(name), true, 0, time.Time{}), nil
 }
 
-// Chmod is TODO
-func (Fs) Chmod(name string, mode os.FileMode) error {
-	return errors.New("not implemented")
+// Chmod doesn't exists in S3 but could be implemented by analyzing ACLs
+func (Fs) Chmod(string, os.FileMode) error {
+	return ErrNotSupported
 }
 
-// Chtimes is TODO
-func (Fs) Chtimes(name string, atime time.Time, mtime time.Time) error {
-	return errors.New("not implemented")
+// Chtimes could be implemented if needed, but that would require to override object properties using metadata,
+// which makes it a non-standard solution
+func (Fs) Chtimes(string, time.Time, time.Time) error {
+	return ErrNotSupported
 }

@@ -20,6 +20,7 @@ func NewFileInfo(name string, directory bool, sizeInBytes int64, modTime time.Ti
 		name:        name,
 		directory:   directory,
 		sizeInBytes: sizeInBytes,
+		modTime:     modTime,
 	}
 }
 

@@ -232,7 +232,7 @@ func (f *File) ReadAt(p []byte, off int64) (n int, err error) {
 func (f *File) Seek(offset int64, whence int) (int64, error) {
 	// In write mode, this isn't supported
 	if f.streamWrite != nil {
-		return 0, ErrNotImplemented
+		return 0, ErrNotSupported
 	}
 	if f.streamRead != nil {
 		return f.streamRead.Seek(offset, whence)
