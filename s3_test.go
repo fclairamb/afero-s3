@@ -62,20 +62,22 @@ func GetFs(t *testing.T) afero.Fs {
 
 	fs := NewFs(bucketName, sess)
 
-	t.Cleanup(func() {
-		if err := fs.RemoveAll("/"); err != nil {
-			t.Fatal("Could not cleanup bucket:", err)
-			return
-		}
-
-		// The minio implementation makes the RemoveAll("/") also delete the simulated S3 bucket, so we *should* but
-		// *can't* use the bucket deletion.
-		/*
-			if _, err := s3Client.DeleteBucket(&s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
-				t.Fatal("Could not delete bucket:", err)
+	// The following cleanup code works fine but testing.T.Cleanup is only available since Go 1.14 and we don't actually
+	// need it for now.
+	/*
+		t.Cleanup(func() {
+			if err := fs.RemoveAll("/"); err != nil {
+				t.Fatal("Could not cleanup bucket:", err)
+				return
 			}
-		*/
-	})
+
+			// The minio implementation makes the RemoveAll("/") also delete the simulated S3 bucket, so we *should* but
+			// *can't* use the bucket deletion.
+			// if _, err := s3Client.DeleteBucket(&s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
+			//   t.Fatal("Could not delete bucket:", err)
+			// }
+		})
+	*/
 
 	return fs
 }
