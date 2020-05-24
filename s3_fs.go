@@ -42,8 +42,11 @@ var ErrNotSupported = errors.New("s3 doesn't support this operation")
 // ErrAlreadyOpened is returned when the file is already opened
 var ErrAlreadyOpened = errors.New("already opened")
 
+// ErrInvalidSeek is returned when the seek operation is not doable
+var ErrInvalidSeek = errors.New("invalid seek offset")
+
 // Name returns the type of FS object this is: Fs.
-func (Fs) Name() string { return "Fs" }
+func (Fs) Name() string { return "s3" }
 
 // Create a file.
 func (fs Fs) Create(name string) (afero.File, error) {
@@ -124,7 +127,8 @@ func (fs *Fs) OpenFile(name string, flag int, perm os.FileMode) (afero.File, err
 		return file, file.openWriteStream()
 	}
 
-	info, err := fs.Stat(name)
+	info, err := file.Stat()
+
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +136,8 @@ func (fs *Fs) OpenFile(name string, flag int, perm os.FileMode) (afero.File, err
 	if info.IsDir() {
 		return file, nil
 	}
-	return file, file.openReadStream()
+
+	return file, file.openReadStream(0)
 }
 
 // Remove a file

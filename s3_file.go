@@ -2,6 +2,7 @@
 package s3
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -17,15 +18,19 @@ import (
 // File represents a file in S3.
 // nolint: maligned
 type File struct {
-	fs   *Fs    // Parent file system
-	name string // Name of the file
+	fs         *Fs         // Parent file system
+	name       string      // Name of the file
+	cachedInfo os.FileInfo // File info cached for later used
 
-	// State of the file being Read and Written
-	streamRead          *readSeekerEmulator
+	// State of the stream if we are reading the file
+	streamRead       io.ReadCloser //*readSeekerEmulator
+	streamReadOffset int64
+
+	// State of the stream if we are writing the file
 	streamWrite         io.WriteCloser
 	streamWriteCloseErr chan error
 
-	// readdir state
+	// State of the readdir stream if we are listing directories
 	readdirContinuationToken *string
 	readdirNotTruncated      bool
 }
@@ -100,7 +105,7 @@ func (f *File) Readdir(n int) ([]os.FileInfo, error) {
 	return fis, nil
 }
 
-// ReaddirAll provides list of file info.
+// ReaddirAll provides list of file cachedInfo.
 func (f *File) ReaddirAll() ([]os.FileInfo, error) {
 	var fileInfos []os.FileInfo
 	for {
@@ -144,7 +149,11 @@ func (f *File) Readdirnames(n int) ([]string, error) {
 // Stat returns the FileInfo structure describing file.
 // If there is an error, it will be of type *PathError.
 func (f *File) Stat() (os.FileInfo, error) {
-	return f.fs.Stat(f.Name())
+	info, err := f.fs.Stat(f.Name())
+	if err == nil {
+		f.cachedInfo = info
+	}
+	return info, err
 }
 
 // Sync is a noop.
@@ -204,14 +213,13 @@ func (f *File) Close() error {
 // It returns the number of bytes read and an error, if any.
 // EOF is signaled by a zero count with err set to io.EOF.
 func (f *File) Read(p []byte) (int, error) {
-	/*
-		if f.streamRead == nil {
-			if err := f.openReadStream(); err != nil {
-				return 0, err
-			}
-		}
-	*/
-	return f.streamRead.Read(p)
+	n, err := f.streamRead.Read(p)
+
+	if err == nil {
+		f.streamReadOffset += int64(n)
+	}
+
+	return n, err
 }
 
 // ReadAt reads len(p) bytes from the file starting at byte offset off.
@@ -233,14 +241,42 @@ func (f *File) ReadAt(p []byte, off int64) (n int, err error) {
 // It returns the new offset and an error, if any.
 // The behavior of Seek on a file opened with O_APPEND is not specified.
 func (f *File) Seek(offset int64, whence int) (int64, error) {
-	// In write mode, this isn't supported
+	// Write seek is not supported
 	if f.streamWrite != nil {
 		return 0, ErrNotSupported
 	}
+
+	// Read seek has its own implementation
 	if f.streamRead != nil {
-		return f.streamRead.Seek(offset, whence)
+		return f.seekRead(offset, whence)
 	}
+
+	// Not having a stream
 	return 0, afero.ErrFileClosed
+}
+
+func (f *File) seekRead(offset int64, whence int) (int64, error) {
+	startByte := int64(0)
+
+	switch whence {
+	case io.SeekStart:
+		startByte = offset
+	case io.SeekCurrent:
+		startByte = f.streamReadOffset + offset
+	case io.SeekEnd:
+		startByte = f.cachedInfo.Size() - offset
+	}
+
+	if err := f.streamRead.Close(); err != nil {
+		return 0, fmt.Errorf("couldn't close previous stream: %v", err)
+	}
+	f.streamRead = nil
+
+	if startByte < 0 {
+		return startByte, ErrInvalidSeek
+	}
+
+	return startByte, f.openReadStream(startByte)
 }
 
 // Write writes len(b) bytes to the File.
@@ -275,21 +311,28 @@ func (f *File) openWriteStream() error {
 	return nil
 }
 
-func (f *File) openReadStream() error {
+func (f *File) openReadStream(startAt int64) error {
 	if f.streamRead != nil {
 		return ErrAlreadyOpened
+	}
+
+	var streamRange *string = nil
+
+	if startAt > 0 {
+		streamRange = aws.String(fmt.Sprintf("bytes=%d-%d", startAt, f.cachedInfo.Size()))
 	}
 
 	resp, err := f.fs.s3API.GetObject(&s3.GetObjectInput{
 		Bucket: aws.String(f.fs.bucket),
 		Key:    aws.String(f.name),
+		Range:  streamRange,
 	})
 	if err != nil {
 		return err
 	}
-	f.streamRead = &readSeekerEmulator{
-		reader: resp.Body,
-	}
+
+	f.streamReadOffset = startAt
+	f.streamRead = resp.Body
 	return nil
 }
 
@@ -303,57 +346,4 @@ func (f *File) WriteAt(p []byte, off int64) (n int, err error) {
 	}
 	n, err = f.Write(p)
 	return
-}
-
-type readSeekerEmulator struct {
-	reader io.ReadCloser
-	offset int64
-}
-
-// Seek simulates a seek by actually reading, when possible, the underlying reader
-func (s readSeekerEmulator) Seek(offset int64, whence int) (int64, error) {
-	var nbBytesToRead int64
-	switch whence {
-	case io.SeekStart:
-		nbBytesToRead = offset - s.offset
-	case io.SeekCurrent:
-		nbBytesToRead = offset
-	case io.SeekEnd:
-		return 0, ErrNotImplemented
-	}
-
-	// Going backward is technically possible (we just have to re-open the stream) but not supported at this stage
-	if nbBytesToRead < 0 {
-		return 0, ErrNotImplemented
-	}
-
-	// This fake-reading algorithm seems clunky
-	bufferSize := int64(8192)
-	buffer := make([]byte, 0, 8192)
-	for i := int64(0); i < nbBytesToRead; {
-		toRead := nbBytesToRead - i
-		if toRead > bufferSize {
-			toRead = bufferSize
-		}
-		read, err := s.Read(buffer[0:toRead])
-		i += int64(read)
-		if err != nil {
-			return i, err
-		}
-	}
-	return offset, nil
-}
-
-// Read performs a read on the underlying reader
-func (s readSeekerEmulator) Read(p []byte) (int, error) {
-	n, err := s.reader.Read(p)
-	if err == nil {
-		s.offset += int64(n)
-	}
-	return n, err
-}
-
-// Close closes the underlying reader
-func (s readSeekerEmulator) Close() error {
-	return s.reader.Close()
 }

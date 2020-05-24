@@ -14,7 +14,7 @@ type FileInfo struct {
 	modTime     time.Time
 }
 
-// NewFileInfo creates file info.
+// NewFileInfo creates file cachedInfo.
 func NewFileInfo(name string, directory bool, sizeInBytes int64, modTime time.Time) FileInfo {
 	return FileInfo{
 		name:        name,

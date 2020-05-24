@@ -2,15 +2,17 @@
 ## About
 It provides an [afero filesystem](https://github.com/spf13) implementation of an [S3](https://aws.amazon.com/s3/) backend.
 
+I'm very opened to any improvement through issues or pull-request that might lead to a better implementation or even
+better testing.
+
 ## Key points
 - Download & upload file streaming
-- Lots of tests (on local minio server)
+- 80% coverage (all APIs are tested, but not all errors are reproduced)
 
-Please note that:
+## Known limitations
 - File appending is not supported because S3 doesn't support it, it could be simulated by rewriting entire files
 - Chmod / Chtimes are not supported because S3 doesn't support it, it could be simulated through metadata
-- Seeking for write is not supported
-- Seeking for read is simulated. This should probably changed to actually support it
+- Seeking for write is not supported, seeking for read (using ranges) is functional though
 
 
 ## How to use

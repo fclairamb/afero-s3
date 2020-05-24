@@ -130,12 +130,20 @@ func TestFileWrite(t *testing.T) {
 	testWriteFile(t, fs, "/file-100M", 100*1024*1024)
 }
 
-func TestFileSeek(t *testing.T) {
+func TestFsName(t *testing.T) {
+	fs := GetFs(t)
+	if fs.Name() != "s3" {
+		t.Fatal("Wrong name")
+	}
+}
+
+func TestFileSeekBig(t *testing.T) {
 	fs := GetFs(t)
 	size := 10 * 1024 * 1024 // 10MB
 	name := "file-10M"
 
 	{ // First we write the file
+		t.Log("Writing initial file")
 		randomReader := NewLimitedReader(rand.New(rand.NewSource(0)), size)
 
 		file, errOpen := fs.OpenFile(name, os.O_WRONLY, 0777)
@@ -153,6 +161,7 @@ func TestFileSeek(t *testing.T) {
 	}
 
 	{
+		t.Log("Checking the second half of it")
 		randomReader := NewLimitedReader(rand.New(rand.NewSource(0)), size)
 		{ // We skip 5MB by reading them
 			buffer := make([]byte, 1*1024*1024)
@@ -183,11 +192,162 @@ func TestFileSeek(t *testing.T) {
 	}
 }
 
+//nolint: gocyclo, funlen
+func TestFileSeekBasic(t *testing.T) {
+	fs := GetFs(t)
+
+	{ // Writing an initial file
+		file, errOpen := fs.OpenFile("file1", os.O_WRONLY, 0777)
+		if errOpen != nil {
+			t.Fatal("Could not open file:", errOpen)
+		}
+
+		if _, err := file.WriteString("Hello world !"); err != nil {
+			t.Fatal("Could not write file:", err)
+		}
+
+		if errClose := file.Close(); errClose != nil {
+			t.Fatal("Couldn't close file", errClose)
+		}
+	}
+
+	file, errOpen := fs.Open("file1")
+	if errOpen != nil {
+		t.Fatal("Could not open file:", errOpen)
+	}
+
+	defer func() {
+		if err := file.Close(); err != nil {
+			t.Fatal("Could not close file:", err)
+		}
+	}()
+
+	buffer := make([]byte, 5)
+
+	{ // Reading the world
+		if pos, err := file.Seek(6, io.SeekStart); err != nil || pos != 6 {
+			t.Fatal("Could not seek:", err)
+		}
+
+		if _, err := file.Read(buffer); err != nil {
+			t.Fatal("Could not read buffer:", err)
+		}
+
+		if string(buffer) != "world" {
+			t.Fatal("Bad fetch:", string(buffer))
+		}
+	}
+
+	{ // Going 3 bytes backwards
+		if pos, err := file.Seek(-3, io.SeekCurrent); err != nil || pos != 8 {
+			t.Fatal("Could not seek:", err)
+		}
+
+		//smallbuf := buffer[0:2]
+
+		if _, err := file.Read(buffer); err != io.EOF {
+			t.Fatal("Could not read buffer:", err)
+		}
+
+		if string(buffer) != "rld !" {
+			t.Fatal("Bad fetch:", string(buffer))
+		}
+	}
+
+	{ // And then going back to the beginning
+		if pos, err := file.Seek(1, io.SeekStart); err != nil || pos != 1 {
+			t.Fatal("Could not seek:", err)
+		}
+
+		if _, err := file.Read(buffer); err != nil {
+			t.Fatal("Could not read buffer:", err)
+		}
+
+		if string(buffer) != "ello " {
+			t.Fatal("Bad fetch:", string(buffer))
+		}
+	}
+
+	{ // And from the end
+		if pos, err := file.Seek(5, io.SeekEnd); err != nil || pos != 8 {
+			t.Fatal("Could not seek:", err)
+		}
+
+		if _, err := file.Read(buffer); err != io.EOF {
+			t.Fatal("Could not read buffer:", err)
+		}
+
+		if string(buffer) != "rld !" {
+			t.Fatal("Bad fetch:", string(buffer))
+		}
+	}
+}
+
+func TestReadAt(t *testing.T) {
+	fs := GetFs(t)
+
+	{ // Writing an initial file
+		file, errOpen := fs.OpenFile("file1", os.O_WRONLY, 0777)
+		if errOpen != nil {
+			t.Fatal("Could not open file:", errOpen)
+		}
+
+		if _, err := file.WriteString("Hello world !"); err != nil {
+			t.Fatal("Could not write file:", err)
+		}
+
+		if err := file.Close(); err != nil {
+			t.Fatal("Could not close file:", err)
+		}
+	}
+
+	{ // Reading a file
+		file, errOpen := fs.Open("file1")
+		if errOpen != nil {
+			t.Fatal("Could not open file:", errOpen)
+		}
+
+		defer func() {
+			if err := file.Close(); err != nil {
+				t.Fatal("Could not close file:", err)
+			}
+		}()
+
+		buffer := make([]byte, 5)
+		if _, err := file.ReadAt(buffer, 6); err != nil {
+			t.Fatal("Could not perform ReadAt:", err)
+		}
+
+		if string(buffer) != "world" {
+			t.Fatal("Bad fetch:", string(buffer))
+		}
+	}
+}
+
+func TestWriteAt(t *testing.T) {
+	fs := GetFs(t)
+
+	file, errOpen := fs.OpenFile("file1", os.O_WRONLY, 0777)
+	if errOpen != nil {
+		t.Fatal("Could not open file:", errOpen)
+	}
+
+	defer func() {
+		if err := file.Close(); err != nil {
+			t.Fatal("Could not close file:", err)
+		}
+	}()
+
+	if _, err := file.WriteAt([]byte("hello !"), 1); err == nil {
+		t.Fatal("We have no way to make this work !")
+	}
+}
+
 func TestFileCreate(t *testing.T) {
 	fs := GetFs(t)
 
 	if _, err := fs.Stat("/file1"); err == nil {
-		t.Fatal("We should'nt be able to get a file info at this stage")
+		t.Fatal("We should'nt be able to get a file cachedInfo at this stage")
 	}
 
 	if file, err := fs.Create("/file1"); err != nil {
@@ -287,6 +447,78 @@ func TestDirHandle(t *testing.T) {
 	}
 }
 
+func TestFileReaddirnames(t *testing.T) {
+	fs := GetFs(t)
+
+	// We create some dirs
+	for _, dir := range []string{"/dir1", "/dir2", "/dir3"} {
+		if err := fs.Mkdir(dir, 0750); err != nil {
+			t.Fatal("Could not create dir:", err)
+		}
+	}
+
+	root, errOpen := fs.Open("/")
+	if errOpen != nil {
+		t.Fatal(errOpen)
+	}
+
+	{
+		dirs, err := root.Readdirnames(2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(dirs) != 2 || dirs[0] != "dir1" || dirs[1] != "dir2" {
+			t.Fatal("Wrong dirs")
+		}
+	}
+
+	{
+		dirs, err := root.Readdirnames(2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(dirs) != 1 || dirs[0] != "dir3" {
+			t.Fatal("Wrong dirs")
+		}
+	}
+}
+
+func TestFileStat(t *testing.T) {
+	fs := GetFs(t)
+
+	// We create a "dir1" directory
+	if err := fs.Mkdir("/dir1", 0750); err != nil {
+		t.Fatal("Could not create dir:", err)
+	}
+
+	// Then create a "file1" file in it
+	if file, err := fs.Create("/dir1/file1"); err != nil {
+		t.Fatal("Could not create file:", err)
+	} else if err := file.Close(); err != nil {
+		t.Fatal("Couldn't close file:", err)
+	}
+
+	if dir1, err := fs.Open("/dir1"); err != nil {
+		t.Fatal(err)
+	} else {
+		if stat, err := dir1.Stat(); err != nil {
+			t.Fatal(err)
+		} else if stat.Mode() != 0755 {
+			t.Fatal("Wrong dir mode")
+		}
+	}
+
+	if file1, err := fs.Open("/dir1/file1"); err != nil {
+		t.Fatal(err)
+	} else {
+		if stat, err := file1.Stat(); err != nil {
+			t.Fatal(err)
+		} else if stat.Mode() != 0664 {
+			t.Fatal("Wrong file mode")
+		}
+	}
+}
+
 func testCreateFile(t *testing.T, fs afero.Fs, name string, content string) {
 	file, err := fs.OpenFile(name, os.O_WRONLY, 0750)
 	if err != nil {
@@ -323,7 +555,7 @@ func TestRename(t *testing.T) {
 	}
 
 	if _, err := fs.Stat("/dir1/dir2/file2"); err != nil {
-		t.Fatal("Couldn't fetch file info:", err)
+		t.Fatal("Couldn't fetch file cachedInfo:", err)
 	}
 
 	// Renaming of a directory isn't tested because it's not supported by afero in the first place
@@ -421,7 +653,7 @@ func TestMain(m *testing.M) {
 	// and CoverMode will be non empty if run with -cover
 	if rc == 0 && testing.CoverMode() != "" {
 		c := testing.Coverage()
-		if c < 0.63 {
+		if c < 0.80 {
 			fmt.Printf("Tests passed but coverage failed at %0.2f\n", c)
 			rc = -1
 		}
