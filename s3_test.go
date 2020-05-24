@@ -130,6 +130,13 @@ func TestFileWrite(t *testing.T) {
 	testWriteFile(t, fs, "/file-100M", 100*1024*1024)
 }
 
+func TestFsName(t *testing.T) {
+	fs := GetFs(t)
+	if fs.Name() != "s3" {
+		t.Fatal("Wrong name")
+	}
+}
+
 func TestFileSeekBig(t *testing.T) {
 	fs := GetFs(t)
 	size := 10 * 1024 * 1024 // 10MB
@@ -440,6 +447,78 @@ func TestDirHandle(t *testing.T) {
 	}
 }
 
+func TestFileReaddirnames(t *testing.T) {
+	fs := GetFs(t)
+
+	// We create some dirs
+	for _, dir := range []string{"/dir1", "/dir2", "/dir3"} {
+		if err := fs.Mkdir(dir, 0750); err != nil {
+			t.Fatal("Could not create dir:", err)
+		}
+	}
+
+	root, errOpen := fs.Open("/")
+	if errOpen != nil {
+		t.Fatal(errOpen)
+	}
+
+	{
+		dirs, err := root.Readdirnames(2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(dirs) != 2 || dirs[0] != "dir1" || dirs[1] != "dir2" {
+			t.Fatal("Wrong dirs")
+		}
+	}
+
+	{
+		dirs, err := root.Readdirnames(2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(dirs) != 1 || dirs[0] != "dir3" {
+			t.Fatal("Wrong dirs")
+		}
+	}
+}
+
+func TestFileStat(t *testing.T) {
+	fs := GetFs(t)
+
+	// We create a "dir1" directory
+	if err := fs.Mkdir("/dir1", 0750); err != nil {
+		t.Fatal("Could not create dir:", err)
+	}
+
+	// Then create a "file1" file in it
+	if file, err := fs.Create("/dir1/file1"); err != nil {
+		t.Fatal("Could not create file:", err)
+	} else if err := file.Close(); err != nil {
+		t.Fatal("Couldn't close file:", err)
+	}
+
+	if dir1, err := fs.Open("/dir1"); err != nil {
+		t.Fatal(err)
+	} else {
+		if stat, err := dir1.Stat(); err != nil {
+			t.Fatal(err)
+		} else if stat.Mode() != 0755 {
+			t.Fatal("Wrong dir mode")
+		}
+	}
+
+	if file1, err := fs.Open("/dir1/file1"); err != nil {
+		t.Fatal(err)
+	} else {
+		if stat, err := file1.Stat(); err != nil {
+			t.Fatal(err)
+		} else if stat.Mode() != 0664 {
+			t.Fatal("Wrong file mode")
+		}
+	}
+}
+
 func testCreateFile(t *testing.T, fs afero.Fs, name string, content string) {
 	file, err := fs.OpenFile(name, os.O_WRONLY, 0750)
 	if err != nil {
@@ -574,7 +653,7 @@ func TestMain(m *testing.M) {
 	// and CoverMode will be non empty if run with -cover
 	if rc == 0 && testing.CoverMode() != "" {
 		c := testing.Coverage()
-		if c < 0.63 {
+		if c < 0.80 {
 			fmt.Printf("Tests passed but coverage failed at %0.2f\n", c)
 			rc = -1
 		}

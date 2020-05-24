@@ -46,7 +46,7 @@ var ErrAlreadyOpened = errors.New("already opened")
 var ErrInvalidSeek = errors.New("invalid seek offset")
 
 // Name returns the type of FS object this is: Fs.
-func (Fs) Name() string { return "Fs" }
+func (Fs) Name() string { return "s3" }
 
 // Create a file.
 func (fs Fs) Create(name string) (afero.File, error) {

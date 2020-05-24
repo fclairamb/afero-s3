@@ -316,10 +316,16 @@ func (f *File) openReadStream(startAt int64) error {
 		return ErrAlreadyOpened
 	}
 
+	var streamRange *string = nil
+
+	if startAt > 0 {
+		streamRange = aws.String(fmt.Sprintf("bytes=%d-%d", startAt, f.cachedInfo.Size()))
+	}
+
 	resp, err := f.fs.s3API.GetObject(&s3.GetObjectInput{
 		Bucket: aws.String(f.fs.bucket),
 		Key:    aws.String(f.name),
-		Range:  aws.String(fmt.Sprintf("bytes=%d-%d", startAt, f.cachedInfo.Size())),
+		Range:  streamRange,
 	})
 	if err != nil {
 		return err

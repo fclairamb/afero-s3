@@ -7,7 +7,7 @@ better testing.
 
 ## Key points
 - Download & upload file streaming
-- Lots of tests (on local minio server)
+- 80% coverage (all APIs are tested, but not all errors are reproduced)
 
 ## Known limitations
 - File appending is not supported because S3 doesn't support it, it could be simulated by rewriting entire files
