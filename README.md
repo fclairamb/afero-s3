@@ -10,9 +10,9 @@ better testing.
 - 80% coverage (all APIs are tested, but not all errors are reproduced)
 
 ## Known limitations
-- File appending is not supported because S3 doesn't support it, it could be simulated by rewriting entire files
-- Chmod / Chtimes are not supported because S3 doesn't support it, it could be simulated through metadata
-- Seeking for write is not supported, seeking for read (using ranges) is functional though
+- File appending is not supported because S3 doesn't support it, it could be simulated by rewriting entire files.
+- Chmod / Chtimes are not supported because S3 doesn't support it, it could be simulated through metadata.
+- Seeking for write is not supported, seeking for read is functional though.
 
 
 ## How to use
