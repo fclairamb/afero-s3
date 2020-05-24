@@ -185,6 +185,7 @@ func TestFileSeekBig(t *testing.T) {
 	}
 }
 
+//nolint: gocyclo, funlen
 func TestFileSeekBasic(t *testing.T) {
 	fs := GetFs(t)
 
@@ -203,7 +204,6 @@ func TestFileSeekBasic(t *testing.T) {
 		}
 	}
 
-	// Now let's start to read it
 	file, errOpen := fs.Open("file1")
 	if errOpen != nil {
 		t.Fatal("Could not open file:", errOpen)
@@ -273,6 +273,66 @@ func TestFileSeekBasic(t *testing.T) {
 		if string(buffer) != "rld !" {
 			t.Fatal("Bad fetch:", string(buffer))
 		}
+	}
+}
+
+func TestReadAt(t *testing.T) {
+	fs := GetFs(t)
+
+	{ // Writing an initial file
+		file, errOpen := fs.OpenFile("file1", os.O_WRONLY, 0777)
+		if errOpen != nil {
+			t.Fatal("Could not open file:", errOpen)
+		}
+
+		if _, err := file.WriteString("Hello world !"); err != nil {
+			t.Fatal("Could not write file:", err)
+		}
+
+		if err := file.Close(); err != nil {
+			t.Fatal("Could not close file:", err)
+		}
+	}
+
+	{ // Reading a file
+		file, errOpen := fs.Open("file1")
+		if errOpen != nil {
+			t.Fatal("Could not open file:", errOpen)
+		}
+
+		defer func() {
+			if err := file.Close(); err != nil {
+				t.Fatal("Could not close file:", err)
+			}
+		}()
+
+		buffer := make([]byte, 5)
+		if _, err := file.ReadAt(buffer, 6); err != nil {
+			t.Fatal("Could not perform ReadAt:", err)
+		}
+
+		if string(buffer) != "world" {
+			t.Fatal("Bad fetch:", string(buffer))
+		}
+	}
+}
+
+func TestWriteAt(t *testing.T) {
+	fs := GetFs(t)
+
+	file, errOpen := fs.OpenFile("file1", os.O_WRONLY, 0777)
+	if errOpen != nil {
+		t.Fatal("Could not open file:", errOpen)
+	}
+
+	defer func() {
+		if err := file.Close(); err != nil {
+			t.Fatal("Could not close file:", err)
+		}
+	}()
+
+	if _, err := file.WriteAt([]byte("hello !"), 1); err == nil {
+		t.Fatal("We have no way to make this work !")
 	}
 }
 
