@@ -130,12 +130,13 @@ func TestFileWrite(t *testing.T) {
 	testWriteFile(t, fs, "/file-100M", 100*1024*1024)
 }
 
-func TestFileSeek(t *testing.T) {
+func TestFileSeekBig(t *testing.T) {
 	fs := GetFs(t)
 	size := 10 * 1024 * 1024 // 10MB
 	name := "file-10M"
 
 	{ // First we write the file
+		t.Log("Writing initial file")
 		randomReader := NewLimitedReader(rand.New(rand.NewSource(0)), size)
 
 		file, errOpen := fs.OpenFile(name, os.O_WRONLY, 0777)
@@ -153,6 +154,7 @@ func TestFileSeek(t *testing.T) {
 	}
 
 	{
+		t.Log("Checking the second half of it")
 		randomReader := NewLimitedReader(rand.New(rand.NewSource(0)), size)
 		{ // We skip 5MB by reading them
 			buffer := make([]byte, 1*1024*1024)
@@ -183,11 +185,102 @@ func TestFileSeek(t *testing.T) {
 	}
 }
 
+func TestFileSeekBasic(t *testing.T) {
+	fs := GetFs(t)
+
+	{ // Writing an initial file
+		file, errOpen := fs.OpenFile("file1", os.O_WRONLY, 0777)
+		if errOpen != nil {
+			t.Fatal("Could not open file:", errOpen)
+		}
+
+		if _, err := file.WriteString("Hello world !"); err != nil {
+			t.Fatal("Could not write file:", err)
+		}
+
+		if errClose := file.Close(); errClose != nil {
+			t.Fatal("Couldn't close file", errClose)
+		}
+	}
+
+	// Now let's start to read it
+	file, errOpen := fs.Open("file1")
+	if errOpen != nil {
+		t.Fatal("Could not open file:", errOpen)
+	}
+
+	defer func() {
+		if err := file.Close(); err != nil {
+			t.Fatal("Could not close file:", err)
+		}
+	}()
+
+	buffer := make([]byte, 5)
+
+	{ // Reading the world
+		if pos, err := file.Seek(6, io.SeekStart); err != nil || pos != 6 {
+			t.Fatal("Could not seek:", err)
+		}
+
+		if _, err := file.Read(buffer); err != nil {
+			t.Fatal("Could not read buffer:", err)
+		}
+
+		if string(buffer) != "world" {
+			t.Fatal("Bad fetch:", string(buffer))
+		}
+	}
+
+	{ // Going 3 bytes backwards
+		if pos, err := file.Seek(-3, io.SeekCurrent); err != nil || pos != 8 {
+			t.Fatal("Could not seek:", err)
+		}
+
+		//smallbuf := buffer[0:2]
+
+		if _, err := file.Read(buffer); err != io.EOF {
+			t.Fatal("Could not read buffer:", err)
+		}
+
+		if string(buffer) != "rld !" {
+			t.Fatal("Bad fetch:", string(buffer))
+		}
+	}
+
+	{ // And then going back to the beginning
+		if pos, err := file.Seek(1, io.SeekStart); err != nil || pos != 1 {
+			t.Fatal("Could not seek:", err)
+		}
+
+		if _, err := file.Read(buffer); err != nil {
+			t.Fatal("Could not read buffer:", err)
+		}
+
+		if string(buffer) != "ello " {
+			t.Fatal("Bad fetch:", string(buffer))
+		}
+	}
+
+	{ // And from the end
+		if pos, err := file.Seek(5, io.SeekEnd); err != nil || pos != 8 {
+			t.Fatal("Could not seek:", err)
+		}
+
+		if _, err := file.Read(buffer); err != io.EOF {
+			t.Fatal("Could not read buffer:", err)
+		}
+
+		if string(buffer) != "rld !" {
+			t.Fatal("Bad fetch:", string(buffer))
+		}
+	}
+}
+
 func TestFileCreate(t *testing.T) {
 	fs := GetFs(t)
 
 	if _, err := fs.Stat("/file1"); err == nil {
-		t.Fatal("We should'nt be able to get a file info at this stage")
+		t.Fatal("We should'nt be able to get a file cachedInfo at this stage")
 	}
 
 	if file, err := fs.Create("/file1"); err != nil {
@@ -323,7 +416,7 @@ func TestRename(t *testing.T) {
 	}
 
 	if _, err := fs.Stat("/dir1/dir2/file2"); err != nil {
-		t.Fatal("Couldn't fetch file info:", err)
+		t.Fatal("Couldn't fetch file cachedInfo:", err)
 	}
 
 	// Renaming of a directory isn't tested because it's not supported by afero in the first place
