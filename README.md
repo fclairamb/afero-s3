@@ -1,6 +1,6 @@
 # S3 Backend for Afero
 ## About
-It provides an [afero filesystem](https://github.com/spf13) implementation of an [S3](https://aws.amazon.com/s3/) backend.
+It provides an [afero filesystem](https://github.com/spf13/afero/) implementation of an [S3](https://aws.amazon.com/s3/) backend.
 
 I'm very opened to any improvement through issues or pull-request that might lead to a better implementation or even
 better testing.
