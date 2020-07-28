@@ -80,6 +80,8 @@ github.com/aws/aws-sdk-go v1.33.11 h1:A7b3mNKbh/0zrhnNN/KxWD0YZJw2RImnjFXWOquYKB
 github.com/aws/aws-sdk-go v1.33.11/go.mod h1:5zCpMtNQVjRREroY7sYe8lOMRSxkhG6MZveU8YkpAk0=
 github.com/aws/aws-sdk-go v1.33.12 h1:eydMoSwfrSTD9PWKUJOiDL7+/UwDW8AjInUGVE5Llh4=
 github.com/aws/aws-sdk-go v1.33.12/go.mod h1:5zCpMtNQVjRREroY7sYe8lOMRSxkhG6MZveU8YkpAk0=
+github.com/aws/aws-sdk-go v1.33.13 h1:3+AsCrxxnhiUQEhWV+j3kEs7aBCIn2qkDjA+elpxYPU=
+github.com/aws/aws-sdk-go v1.33.13/go.mod h1:5zCpMtNQVjRREroY7sYe8lOMRSxkhG6MZveU8YkpAk0=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/go-sql-driver/mysql v1.5.0/go.mod h1:DCzpHaOWr8IXmIStZouvnhqoel9Qv2LBy8hT2VhHyBg=
 github.com/jmespath/go-jmespath v0.3.0 h1:OS12ieG61fsCg5+qLJ+SsW9NicxNkg3b25OyT2yCeUc=
