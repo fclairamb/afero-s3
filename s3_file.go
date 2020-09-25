@@ -91,7 +91,7 @@ func (f *File) Readdir(n int) ([]os.FileInfo, error) {
 	}
 	var fis = make([]os.FileInfo, 0, len(output.CommonPrefixes)+len(output.Contents))
 	for _, subfolder := range output.CommonPrefixes {
-		fis = append(fis, NewFileInfo(filepath.Base("/"+*subfolder.Prefix), true, 0, time.Time{}))
+		fis = append(fis, NewFileInfo(filepath.Base("/"+*subfolder.Prefix), true, 0, time.Unix(0, 0)))
 	}
 	for _, fileObject := range output.Contents {
 		if hasTrailingSlash(*fileObject.Key) {

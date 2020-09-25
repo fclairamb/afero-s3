@@ -272,7 +272,7 @@ func (fs Fs) statDirectory(name string) (os.FileInfo, error) {
 			Err:  os.ErrNotExist,
 		}
 	}
-	return NewFileInfo(filepath.Base(name), true, 0, time.Time{}), nil
+	return NewFileInfo(filepath.Base(name), true, 0, time.Unix(0, 0)), nil
 }
 
 // Chmod doesn't exists in S3 but could be implemented by analyzing ACLs
