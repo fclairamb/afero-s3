@@ -2,12 +2,15 @@
 ## About
 It provides an [afero filesystem](https://github.com/spf13/afero/) implementation of an [S3](https://aws.amazon.com/s3/) backend.
 
+This was created to provide a backend to the [ftpserver](https://github.com/fclairamb/ftpserver) but can definitely be used in any other code.
+
 I'm very opened to any improvement through issues or pull-request that might lead to a better implementation or even
 better testing.
 
 ## Key points
 - Download & upload file streaming
 - 80% coverage (all APIs are tested, but not all errors are reproduced)
+- Very carefully linted
 
 ## Known limitations
 - File appending / seeking for write is not supported because S3 doesn't support it, it could be simulated by rewriting entire files.
