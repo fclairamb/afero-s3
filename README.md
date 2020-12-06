@@ -1,4 +1,11 @@
 # S3 Backend for Afero
+
+![Build](https://github.com/fclairamb/afero-s3/workflows/Build/badge.svg)
+[![codecov](https://codecov.io/gh/fclairamb/afero-s3/branch/master/graph/badge.svg?token=OZ2WZ969O5)](https://codecov.io/gh/fclairamb/afero-s3)
+[![Go Report Card](https://goreportcard.com/badge/fclairamb/afero-s3)](https://goreportcard.com/report/fclairamb/afero-s3)
+[![GoDoc](https://godoc.org/github.com/fclairamb/afero-s3?status.svg)](https://godoc.org/github.com/fclairamb/afero-s3)
+
+
 ## About
 It provides an [afero filesystem](https://github.com/spf13/afero/) implementation of an [S3](https://aws.amazon.com/s3/) backend.
 
