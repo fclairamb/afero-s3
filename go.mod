@@ -3,6 +3,7 @@ module github.com/fclairamb/afero-s3
 go 1.14
 
 require (
-	github.com/aws/aws-sdk-go v1.36.2
-	github.com/spf13/afero v1.4.1
+	github.com/aws/aws-sdk-go v1.36.3
+	github.com/spf13/afero v1.5.0
+	golang.org/x/text v0.3.4 // indirect
 )

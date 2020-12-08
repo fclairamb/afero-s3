@@ -100,7 +100,7 @@ func (fs *Fs) Open(name string) (afero.File, error) {
 }
 
 // OpenFile opens a file.
-func (fs *Fs) OpenFile(name string, flag int, perm os.FileMode) (afero.File, error) {
+func (fs *Fs) OpenFile(name string, flag int, _ os.FileMode) (afero.File, error) {
 	file := NewFile(fs, name)
 
 	// Reading and writing is technically supported but can't lead to anything that makes sense
@@ -220,13 +220,13 @@ func trimLeadingSlash(s string) string {
 // Stat returns a FileInfo describing the named file.
 // If there is an error, it will be of type *os.PathError.
 func (fs Fs) Stat(name string) (os.FileInfo, error) {
-	//nameClean := filepath.Clean(name)
 	out, err := fs.s3API.HeadObject(&s3.HeadObjectInput{
 		Bucket: aws.String(fs.bucket),
 		Key:    aws.String(name),
 	})
 	if err != nil {
-		if errRequestFailure, ok := err.(awserr.RequestFailure); ok {
+		var errRequestFailure awserr.RequestFailure
+		if errors.As(err, &errRequestFailure) {
 			if errRequestFailure.StatusCode() == 404 {
 				statDir, errStat := fs.statDirectory(name)
 				return statDir, errStat
@@ -277,6 +277,11 @@ func (fs Fs) statDirectory(name string) (os.FileInfo, error) {
 
 // Chmod doesn't exists in S3 but could be implemented by analyzing ACLs
 func (Fs) Chmod(string, os.FileMode) error {
+	return ErrNotSupported
+}
+
+// Chown doesn't exist in S3 should probably NOT have been added to afero as it's POSIX-only concept.
+func (Fs) Chown(string, int, int) error {
 	return ErrNotSupported
 }
 
