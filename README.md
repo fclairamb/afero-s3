@@ -16,7 +16,7 @@ better testing.
 
 ## Key points
 - Download & upload file streaming
-- 80% coverage (all APIs are tested, but not all errors are reproduced)
+- 75% coverage (all APIs are tested, but not all errors are reproduced)
 - Very carefully linted
 
 ## Known limitations
