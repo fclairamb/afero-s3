@@ -593,6 +593,15 @@ func TestChmod(t *testing.T) {
 	}
 }
 
+func TestChown(t *testing.T) {
+	fs := GetFs(t)
+	name := "/dir1/file1"
+	testCreateFile(t, fs, name, "Hello world !")
+	if err := fs.Chown(name, 1000, 1000); err == nil {
+		t.Fatal("If Chown is supported, we should have a check here")
+	}
+}
+
 // Source: rog's code from https://groups.google.com/forum/#!topic/golang-nuts/keG78hYt1I0
 func ReadersEqual(r1, r2 io.Reader) (bool, error) {
 	const chunkSize = 8 * 1024 // 8 KB

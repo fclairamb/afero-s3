@@ -9,7 +9,7 @@ run:
     issues-exit-code: 1
   
     # include test files or not, default is true
-    tests: true
+    tests: false
 
 # all available settings of specific linters
 linters-settings:

@@ -2,6 +2,7 @@
 package s3
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -18,21 +19,16 @@ import (
 // File represents a file in S3.
 // nolint: maligned
 type File struct {
-	fs         *Fs         // Parent file system
-	name       string      // Name of the file
-	cachedInfo os.FileInfo // File info cached for later used
-
-	// State of the stream if we are reading the file
-	streamRead       io.ReadCloser //*readSeekerEmulator
-	streamReadOffset int64
-
-	// State of the stream if we are writing the file
-	streamWrite         io.WriteCloser
-	streamWriteCloseErr chan error
-
-	// State of the readdir stream if we are listing directories
-	readdirContinuationToken *string
-	readdirNotTruncated      bool
+	fs                       *Fs            // Parent file system
+	name                     string         // Name of the file
+	cachedInfo               os.FileInfo    // File info cached for later used
+	streamRead               io.ReadCloser  // streamRead is the underlying stream we are reading from
+	streamReadOffset         int64          // streamReadOffset is the offset of the read-only stream
+	streamWrite              io.WriteCloser // streamWrite is the underlying stream we are reading to
+	streamWriteCloseErr      chan error     // streamWriteCloseErr is the channel containing the underlying write error
+	readdirContinuationToken *string        // readdirContinuationToken is used to perform files listing across calls
+	readdirNotTruncated      bool           // readdirNotTruncated is set when we shall continue reading
+	// I think readdirNotTruncated can be dropped. The continuation token is probably enough.
 }
 
 // NewFile initializes an File object.
@@ -112,7 +108,7 @@ func (f *File) ReaddirAll() ([]os.FileInfo, error) {
 		infos, err := f.Readdir(100)
 		fileInfos = append(fileInfos, infos...)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			} else {
 				return nil, err
@@ -268,7 +264,7 @@ func (f *File) seekRead(offset int64, whence int) (int64, error) {
 	}
 
 	if err := f.streamRead.Close(); err != nil {
-		return 0, fmt.Errorf("couldn't close previous stream: %v", err)
+		return 0, fmt.Errorf("couldn't close previous stream: %w", err)
 	}
 	f.streamRead = nil
 
