@@ -242,6 +242,8 @@ github.com/aws/aws-sdk-go v1.36.3 h1:KYpG5OegwW3xgOsMxy01nj/Td281yxi1Ha2lJQJs4tI
 github.com/aws/aws-sdk-go v1.36.3/go.mod h1:hcU610XS61/+aQV88ixoOzUoG7v3b31pl2zKMmprdro=
 github.com/aws/aws-sdk-go v1.36.4 h1:yCP3uadI564OvYtWbG2pyKK/J3cTG5NnAGWBH4Cx9wI=
 github.com/aws/aws-sdk-go v1.36.4/go.mod h1:hcU610XS61/+aQV88ixoOzUoG7v3b31pl2zKMmprdro=
+github.com/aws/aws-sdk-go v1.36.5 h1:SouM2ar1A8f+3DYWW622sDdqkkZAO3ha4j8GQjiPLFg=
+github.com/aws/aws-sdk-go v1.36.5/go.mod h1:hcU610XS61/+aQV88ixoOzUoG7v3b31pl2zKMmprdro=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/go-sql-driver/mysql v1.5.0/go.mod h1:DCzpHaOWr8IXmIStZouvnhqoel9Qv2LBy8hT2VhHyBg=
 github.com/jmespath/go-jmespath v0.3.0 h1:OS12ieG61fsCg5+qLJ+SsW9NicxNkg3b25OyT2yCeUc=
