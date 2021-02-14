@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
+	"path"
 	"time"
 
 	"github.com/spf13/afero"
@@ -87,7 +87,7 @@ func (f *File) Readdir(n int) ([]os.FileInfo, error) {
 	}
 	var fis = make([]os.FileInfo, 0, len(output.CommonPrefixes)+len(output.Contents))
 	for _, subfolder := range output.CommonPrefixes {
-		fis = append(fis, NewFileInfo(filepath.Base("/"+*subfolder.Prefix), true, 0, time.Unix(0, 0)))
+		fis = append(fis, NewFileInfo(path.Base("/"+*subfolder.Prefix), true, 0, time.Unix(0, 0)))
 	}
 	for _, fileObject := range output.Contents {
 		if hasTrailingSlash(*fileObject.Key) {
@@ -95,7 +95,7 @@ func (f *File) Readdir(n int) ([]os.FileInfo, error) {
 			continue
 		}
 
-		fis = append(fis, NewFileInfo(filepath.Base("/"+*fileObject.Key), false, *fileObject.Size, *fileObject.LastModified))
+		fis = append(fis, NewFileInfo(path.Base("/"+*fileObject.Key), false, *fileObject.Size, *fileObject.LastModified))
 	}
 
 	return fis, nil
@@ -137,7 +137,7 @@ func (f *File) Readdirnames(n int) ([]string, error) {
 	}
 	names := make([]string, len(fi))
 	for i, f := range fi {
-		_, names[i] = filepath.Split(f.Name())
+		_, names[i] = path.Split(f.Name())
 	}
 	return names, nil
 }
