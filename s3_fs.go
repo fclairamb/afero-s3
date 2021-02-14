@@ -18,7 +18,7 @@ import (
 
 // Fs is an FS object backed by S3.
 type Fs struct {
-	Acl     string           // ACL to use for files upload
+	ACL     string           // ACL to use for files upload
 	bucket  string           // Bucket name
 	session *session.Session // Session config
 	s3API   *s3.S3
@@ -58,8 +58,8 @@ func (fs Fs) Create(name string) (afero.File, error) {
 			Body:   bytes.NewReader([]byte{}),
 		}
 
-		if fs.Acl != "" {
-			req.ACL = aws.String(fs.Acl)
+		if fs.ACL != "" {
+			req.ACL = aws.String(fs.ACL)
 		}
 
 		_, errPut := fs.s3API.PutObject(req)
