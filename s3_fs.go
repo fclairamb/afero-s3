@@ -279,16 +279,17 @@ func (fs Fs) statDirectory(name string) (os.FileInfo, error) {
 
 // Chmod doesn't exists in S3 but could be implemented by analyzing ACLs
 func (fs Fs) Chmod(name string, mode os.FileMode) error {
-	acl := ""
+	var acl string
 
 	otherRead := mode&(1<<2) != 0
 	otherWrite := mode&(1<<1) != 0
 
-	if otherRead && otherWrite {
+	switch {
+	case otherRead && otherWrite:
 		acl = "public-read-write"
-	} else if otherRead {
+	case otherRead:
 		acl = "public-read"
-	} else {
+	default:
 		acl = "private"
 	}
 
