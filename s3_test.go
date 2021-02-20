@@ -3,7 +3,9 @@ package s3
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"io"
 	"math/rand"
 	"os"
@@ -588,8 +590,18 @@ func TestChmod(t *testing.T) {
 	fs := GetFs(t)
 	name := "/dir1/file1"
 	testCreateFile(t, fs, name, "Hello world !")
-	if err := fs.Chmod(name, 0750); err == nil {
-		t.Fatal("If Chmod is supported, we should have a check here")
+	if err := fs.Chmod(name, 0600); err != nil {
+		t.Fatal("Couldn't set file to private", err)
+	}
+	for _, m := range []os.FileMode{0606, 0604} {
+		if err := fs.Chmod(name, m); err != nil {
+			var fail awserr.RequestFailure
+			if errors.As(err, &fail) && fail.Code() == "XMinioAdminInvalidArgument" {
+				t.Log("Minio doesn't support this...")
+			} else {
+				t.Fatal("Problem setting this", err)
+			}
+		}
 	}
 }
 
