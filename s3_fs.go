@@ -281,7 +281,12 @@ func (fs Fs) statDirectory(name string) (os.FileInfo, error) {
 func (fs Fs) Chmod(name string, mode os.FileMode) error {
 	acl := ""
 
-	if mode&(1<<2) != 0 {
+	otherRead := mode&(1<<2) != 0
+	otherWrite := mode&(1<<1) != 0
+
+	if otherRead && otherWrite {
+		acl = "public-read-write"
+	} else if otherRead {
 		acl = "public-read"
 	} else {
 		acl = "private"
