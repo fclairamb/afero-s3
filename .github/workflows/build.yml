@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-20.04
     services:
       minio:
-        image: fclairamb/minio-github-actions
+        image: fclairamb/minio-github-actions:v0.1
         # env:
         #  MINIO_COMMAND: server
         ports:
