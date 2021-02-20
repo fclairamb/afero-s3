@@ -18,6 +18,7 @@ import (
 
 // Fs is an FS object backed by S3.
 type Fs struct {
+	ACL     string           // ACL to use for files upload
 	bucket  string           // Bucket name
 	session *session.Session // Session config
 	s3API   *s3.S3
@@ -51,11 +52,17 @@ func (Fs) Name() string { return "s3" }
 // Create a file.
 func (fs Fs) Create(name string) (afero.File, error) {
 	{ // It's faster to trigger an explicit empty put object than opening a file for write, closing it and re-opening it
-		_, errPut := fs.s3API.PutObject(&s3.PutObjectInput{
+		req := &s3.PutObjectInput{
 			Bucket: aws.String(fs.bucket),
 			Key:    aws.String(name),
 			Body:   bytes.NewReader([]byte{}),
-		})
+		}
+
+		if fs.ACL != "" {
+			req.ACL = aws.String(fs.ACL)
+		}
+
+		_, errPut := fs.s3API.PutObject(req)
 		if errPut != nil {
 			return nil, errPut
 		}
@@ -271,8 +278,27 @@ func (fs Fs) statDirectory(name string) (os.FileInfo, error) {
 }
 
 // Chmod doesn't exists in S3 but could be implemented by analyzing ACLs
-func (Fs) Chmod(string, os.FileMode) error {
-	return ErrNotSupported
+func (fs Fs) Chmod(name string, mode os.FileMode) error {
+	var acl string
+
+	otherRead := mode&(1<<2) != 0
+	otherWrite := mode&(1<<1) != 0
+
+	switch {
+	case otherRead && otherWrite:
+		acl = "public-read-write"
+	case otherRead:
+		acl = "public-read"
+	default:
+		acl = "private"
+	}
+
+	_, err := fs.s3API.PutObjectAcl(&s3.PutObjectAclInput{
+		Bucket: aws.String(fs.bucket),
+		Key:    aws.String(name),
+		ACL:    aws.String(acl),
+	})
+	return err
 }
 
 // Chown doesn't exist in S3 should probably NOT have been added to afero as it's POSIX-only concept.
