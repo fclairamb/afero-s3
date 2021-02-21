@@ -821,3 +821,8 @@ func TestMain(m *testing.M) {
 	}
 	os.Exit(rc)
 }
+
+func TestFileInfo(t *testing.T) {
+	fi := NewFileInfo("name", false, 1024, time.Now())
+	require.Nil(t, fi.Sys())
+}
