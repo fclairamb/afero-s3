@@ -662,6 +662,35 @@ func TestChown(t *testing.T) {
 	}
 }
 
+func TestContentType(t *testing.T) {
+	fs := __getS3Fs(t)
+	req := require.New(t)
+
+	fileToMime := map[string]string{
+		"file.jpg":  "image/jpeg",
+		"file.jpeg": "image/jpeg",
+		"file.png":  "image/png",
+		"file.txt":  "text/plain",
+		"file.html": "text/html",
+		"file.htm":  "text/html",
+	}
+
+	// We write each file
+	for fileName, _ := range fileToMime {
+		testCreateFile(t, fs, fileName, "content")
+	}
+
+	// And we check the resulting content-type
+	for fileName, mimeType := range fileToMime {
+		resp, err := fs.s3API.GetObject(&s3.GetObjectInput{
+			Bucket: aws.String(fs.bucket),
+			Key:    aws.String(fileName),
+		})
+		req.NoError(err)
+		req.Contains(*resp.ContentType, mimeType)
+	}
+}
+
 // Source: rog's code from https://groups.google.com/forum/#!topic/golang-nuts/keG78hYt1I0
 func ReadersEqual(r1, r2 io.Reader) (bool, error) {
 	const chunkSize = 8 * 1024 // 8 KB
