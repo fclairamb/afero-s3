@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/stretchr/testify/require"
 	"io"
 	"math/rand"
 	"os"
@@ -36,6 +37,10 @@ var (
 )
 
 func GetFs(t *testing.T) afero.Fs {
+	return __getS3Fs(t)
+}
+
+func __getS3Fs(t *testing.T) *Fs {
 	sess, errSession := session.NewSession(&aws.Config{
 		Credentials:      credentials.NewStaticCredentials("minioadmin", "minioadmin", ""),
 		Endpoint:         aws.String("http://localhost:9000"),
@@ -483,6 +488,49 @@ func TestFileReaddirnames(t *testing.T) {
 			t.Fatal("Wrong dirs")
 		}
 	}
+}
+
+// This test is only here to explain this FS might behave in a strange way
+func TestBadConnection(t *testing.T) {
+	req := require.New(t)
+	fs := __getS3Fs(t)
+
+	// Let's mess-up the config
+	fs.session.Config.Endpoint = aws.String("http://broken")
+
+	t.Run("Read", func(t *testing.T) {
+		// We will fail here because we are checking if the file exists and its type
+		// before allowing to read it.
+		_, err := fs.Open("file")
+		req.Error(err)
+	})
+
+	t.Run("Write", func(t *testing.T) {
+		// We open the file (but actually nothing happens)
+		f, err := fs.OpenFile("file", os.O_WRONLY, 0777)
+		req.NoError(err)
+
+		// We write something to the s3.uploader that will itself wait for its buffer to be filled
+		// before sending the first request.
+		_, err = f.WriteString("hello ")
+		req.NoError(err)
+
+		// At this point, something will have failed
+		req.Error(f.Close())
+	})
+
+	// On a "big" file things don't work the same way though
+	t.Run("WriteBig", func(t *testing.T) {
+		r := NewLimitedReader(rand.New(rand.NewSource(0)), 10*1024*1024)
+
+		f, err := fs.OpenFile("file", os.O_WRONLY, 0777)
+		req.NoError(err)
+
+		written, err := io.Copy(f, r)
+		req.Error(err)
+		// The default AWS SDK buffer size is 5MB (as such, an SDK update might break this test)
+		req.Equal(int64(5*1024*1024), written, "Should fail at 5MB")
+	})
 }
 
 func TestFileStat(t *testing.T) {
