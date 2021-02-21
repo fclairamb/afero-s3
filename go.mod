@@ -5,5 +5,5 @@ go 1.15
 require (
 	github.com/aws/aws-sdk-go v1.37.15
 	github.com/spf13/afero v1.5.1
-	github.com/stretchr/testify v1.4.0
+	github.com/stretchr/testify v1.7.0
 )
