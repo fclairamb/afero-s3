@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"os"
 	"path"
+	"path/filepath"
 	"time"
 
 	"github.com/spf13/afero"
@@ -304,11 +306,15 @@ func (f *File) openWriteStream() error {
 	uploader := s3manager.NewUploader(f.fs.session)
 	uploader.Concurrency = 1
 
+	// We're guessing a type
+	contentType := mime.TypeByExtension(filepath.Ext(f.name))
+
 	go func() {
 		_, err := uploader.Upload(&s3manager.UploadInput{
-			Bucket: aws.String(f.fs.bucket),
-			Key:    aws.String(f.name),
-			Body:   reader,
+			Bucket:      aws.String(f.fs.bucket),
+			Key:         aws.String(f.name),
+			Body:        reader,
+			ContentType: aws.String(contentType),
 		})
 
 		if err != nil {
