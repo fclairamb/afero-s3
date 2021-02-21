@@ -25,6 +25,7 @@ type File struct {
 	streamRead               io.ReadCloser  // streamRead is the underlying stream we are reading from
 	streamReadOffset         int64          // streamReadOffset is the offset of the read-only stream
 	streamWrite              io.WriteCloser // streamWrite is the underlying stream we are reading to
+	streamWriteErr           error          // streamWriteErr is the error that should be returned in case of a write
 	streamWriteCloseErr      chan error     // streamWriteCloseErr is the channel containing the underlying write error
 	readdirContinuationToken *string        // readdirContinuationToken is used to perform files listing across calls
 	readdirNotTruncated      bool           // readdirNotTruncated is set when we shall continue reading
@@ -279,7 +280,15 @@ func (f *File) seekRead(offset int64, whence int) (int64, error) {
 // It returns the number of bytes written and an error, if any.
 // Write returns a non-nil error when n != len(b).
 func (f *File) Write(p []byte) (int, error) {
-	return f.streamWrite.Write(p)
+	n, err := f.streamWrite.Write(p)
+
+	// If we have an error, it's only the "read/write on closed pipe" and we
+	// should report the underlying one
+	if err != nil {
+		return 0, f.streamWriteErr
+	}
+
+	return n, err
 }
 
 func (f *File) openWriteStream() error {
@@ -301,6 +310,12 @@ func (f *File) openWriteStream() error {
 			Key:    aws.String(f.name),
 			Body:   reader,
 		})
+
+		if err != nil {
+			f.streamWriteErr = err
+			_ = f.streamWrite.Close()
+		}
+
 		f.streamWriteCloseErr <- err
 		// close(f.streamWriteCloseErr)
 	}()
