@@ -5,23 +5,33 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"mime"
 	"os"
 	"path"
+	"path/filepath"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/spf13/afero"
 )
 
 // Fs is an FS object backed by S3.
 type Fs struct {
-	ACL     string           // ACL to use for files upload
-	bucket  string           // Bucket name
-	session *session.Session // Session config
-	s3API   *s3.S3
+	FileProps *UploadedFileProperties // FileProps define the file properties we want to set for all new files
+	bucket    string                  // Bucket name
+	session   *session.Session        // Session config
+	s3API     *s3.S3
+}
+
+// UploadedFileProperties defines all the set properties applied to future files
+type UploadedFileProperties struct {
+	ACL          *string // ACL defines the right to apply
+	CacheControl *string // CacheControl defines the Cache-Control header
+	ContentType  *string // ContentType define the Content-Type header
 }
 
 // NewFs creates a new Fs object writing files to a given S3 bucket.
@@ -58,8 +68,13 @@ func (fs Fs) Create(name string) (afero.File, error) {
 			Body:   bytes.NewReader([]byte{}),
 		}
 
-		if fs.ACL != "" {
-			req.ACL = aws.String(fs.ACL)
+		if fs.FileProps != nil {
+			applyFileCreateProps(req, fs.FileProps)
+		}
+
+		// If no Content-Type was specified, we'll guess one
+		if req.ContentType == nil {
+			req.ContentType = aws.String(mime.TypeByExtension(filepath.Ext(name)))
 		}
 
 		_, errPut := fs.s3API.PutObject(req)
@@ -310,4 +325,34 @@ func (Fs) Chown(string, int, int) error {
 // which makes it a non-standard solution
 func (Fs) Chtimes(string, time.Time, time.Time) error {
 	return ErrNotSupported
+}
+
+// I couldn't find a way to make this code cleaner. It's basically a big copy-paste on two
+// very similar structures.
+func applyFileCreateProps(req *s3.PutObjectInput, p *UploadedFileProperties) {
+	if p.ACL != nil {
+		req.ACL = p.ACL
+	}
+
+	if p.CacheControl != nil {
+		req.CacheControl = p.CacheControl
+	}
+
+	if p.ContentType != nil {
+		req.ContentType = p.ContentType
+	}
+}
+
+func applyFileWriteProps(req *s3manager.UploadInput, p *UploadedFileProperties) {
+	if p.ACL != nil {
+		req.ACL = p.ACL
+	}
+
+	if p.CacheControl != nil {
+		req.CacheControl = p.CacheControl
+	}
+
+	if p.ContentType != nil {
+		req.ContentType = p.ContentType
+	}
 }
