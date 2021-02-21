@@ -667,12 +667,14 @@ func TestContentType(t *testing.T) {
 	req := require.New(t)
 
 	fileToMime := map[string]string{
-		"file.jpg":  "image/jpeg",
-		"file.jpeg": "image/jpeg",
-		"file.png":  "image/png",
-		"file.txt":  "text/plain",
-		"file.html": "text/html",
-		"file.htm":  "text/html",
+		"file.jpg":       "image/jpeg",
+		"file.jpeg":      "image/jpeg",
+		"file.png":       "image/png",
+		"file.txt":       "text/plain; charset=utf-8",
+		"file.html":      "text/html; charset=utf-8",
+		"file.htm":       "text/html; charset=utf-8",
+		"something.else": "application/octet-stream",
+		"something":      "application/octet-stream",
 	}
 
 	// We write each file
@@ -687,7 +689,7 @@ func TestContentType(t *testing.T) {
 			Key:    aws.String(fileName),
 		})
 		req.NoError(err)
-		req.Contains(*resp.ContentType, mimeType)
+		req.Equal(mimeType, *resp.ContentType)
 	}
 }
 
