@@ -306,16 +306,23 @@ func (f *File) openWriteStream() error {
 	uploader := s3manager.NewUploader(f.fs.session)
 	uploader.Concurrency = 1
 
-	// We're guessing a type
-	contentType := mime.TypeByExtension(filepath.Ext(f.name))
-
 	go func() {
-		_, err := uploader.Upload(&s3manager.UploadInput{
-			Bucket:      aws.String(f.fs.bucket),
-			Key:         aws.String(f.name),
-			Body:        reader,
-			ContentType: aws.String(contentType),
-		})
+		input := &s3manager.UploadInput{
+			Bucket: aws.String(f.fs.bucket),
+			Key:    aws.String(f.name),
+			Body:   reader,
+		}
+
+		if f.fs.FileProps != nil {
+			applyFileWriteProps(input, f.fs.FileProps)
+		}
+
+		// If no Content-Type was specified, we'll guess one
+		if input.ContentType == nil {
+			input.ContentType = aws.String(mime.TypeByExtension(filepath.Ext(f.name)))
+		}
+
+		_, err := uploader.Upload(input)
 
 		if err != nil {
 			f.streamWriteErr = err

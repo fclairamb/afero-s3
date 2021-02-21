@@ -666,31 +666,92 @@ func TestContentType(t *testing.T) {
 	fs := __getS3Fs(t)
 	req := require.New(t)
 
-	fileToMime := map[string]string{
-		"file.jpg":       "image/jpeg",
-		"file.jpeg":      "image/jpeg",
-		"file.png":       "image/png",
-		"file.txt":       "text/plain; charset=utf-8",
-		"file.html":      "text/html; charset=utf-8",
-		"file.htm":       "text/html; charset=utf-8",
-		"something.else": "application/octet-stream",
-		"something":      "application/octet-stream",
-	}
+	t.Run("MimeChecks", func(t *testing.T) {
+		fileToMime := map[string]string{
+			"file.jpg":       "image/jpeg",
+			"file.jpeg":      "image/jpeg",
+			"file.png":       "image/png",
+			"file.txt":       "text/plain; charset=utf-8",
+			"file.html":      "text/html; charset=utf-8",
+			"file.htm":       "text/html; charset=utf-8",
+			"something.else": "application/octet-stream",
+			"something":      "application/octet-stream",
+		}
 
-	// We write each file
-	for fileName, _ := range fileToMime {
-		testCreateFile(t, fs, fileName, "content")
-	}
+		// We write each file
+		for fileName, _ := range fileToMime {
+			testCreateFile(t, fs, fileName, "content")
+		}
 
-	// And we check the resulting content-type
-	for fileName, mimeType := range fileToMime {
+		// And we check the resulting content-type
+		for fileName, mimeType := range fileToMime {
+			resp, err := fs.s3API.GetObject(&s3.GetObjectInput{
+				Bucket: aws.String(fs.bucket),
+				Key:    aws.String(fileName),
+			})
+			req.NoError(err)
+			req.Equal(mimeType, *resp.ContentType)
+		}
+	})
+
+	t.Run("Create", func(t *testing.T) {
+		_, err := fs.Create("create.png")
+		req.NoError(err)
+
 		resp, err := fs.s3API.GetObject(&s3.GetObjectInput{
 			Bucket: aws.String(fs.bucket),
-			Key:    aws.String(fileName),
+			Key:    aws.String("create"),
 		})
 		req.NoError(err)
-		req.Equal(mimeType, *resp.ContentType)
-	}
+		req.Equal("image/png", *resp.ContentType)
+	})
+
+	t.Run("Custom", func(t *testing.T) {
+		fs.FileProps = &UploadedFileProperties{ContentType: aws.String("my-type")}
+		defer func() { fs.FileProps = nil }()
+		_, err := fs.Create("custom-create")
+		req.NoError(err)
+
+		testCreateFile(t, fs, "custom-write", "content")
+
+		for _, name := range []string{"custom-create", "custom-write"} {
+			resp, err := fs.s3API.GetObject(&s3.GetObjectInput{
+				Bucket: aws.String(fs.bucket),
+				Key:    aws.String(name),
+			})
+			req.NoError(err)
+			req.Equal("my-type", *resp.ContentType)
+		}
+	})
+}
+
+func TestFileProps(t *testing.T) {
+	fs := __getS3Fs(t)
+	req := require.New(t)
+
+	t.Run("CacheControl", func(t *testing.T) {
+		cacheControl := "Cache-Control: max-age=300, max-stale=120"
+		fs.FileProps = &UploadedFileProperties{
+			CacheControl: aws.String(cacheControl),
+		}
+
+		// We create a file
+		_, err := fs.Create("create")
+		req.NoError(err)
+
+		// We write an other one
+		testCreateFile(t, fs, "write", "content")
+
+		for _, name := range []string{"create", "write"} {
+			resp, err := fs.s3API.GetObject(&s3.GetObjectInput{
+				Bucket: aws.String(fs.bucket),
+				Key:    aws.String(name),
+			})
+			req.NoError(err)
+			req.Equal(cacheControl, *resp.CacheControl)
+		}
+	})
+
 }
 
 // Source: rog's code from https://groups.google.com/forum/#!topic/golang-nuts/keG78hYt1I0
