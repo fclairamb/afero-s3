@@ -700,7 +700,7 @@ func TestContentType(t *testing.T) {
 
 		resp, err := fs.s3API.GetObject(&s3.GetObjectInput{
 			Bucket: aws.String(fs.bucket),
-			Key:    aws.String("create"),
+			Key:    aws.String("create.png"),
 		})
 		req.NoError(err)
 		req.Equal("image/png", *resp.ContentType)
