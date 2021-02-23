@@ -21,7 +21,8 @@ better testing.
 
 ## Known limitations
 - File appending / seeking for write is not supported because S3 doesn't support it, it could be simulated by rewriting entire files.
-- Chmod / Chtimes are not supported because S3 doesn't support it, it could be simulated through metadata.
+- Chtimes is not supported because S3 doesn't support it, it could be simulated through metadata.
+- Chmod support is very limited
 
 
 ## How to use
