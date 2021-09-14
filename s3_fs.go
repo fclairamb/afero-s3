@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -223,17 +224,6 @@ func (fs Fs) Rename(oldname, newname string) error {
 	return err
 }
 
-func hasTrailingSlash(s string) bool {
-	return len(s) > 0 && s[len(s)-1] == '/'
-}
-
-func trimLeadingSlash(s string) string {
-	if len(s) > 0 && s[0] == '/' {
-		return s[1:]
-	}
-	return s
-}
-
 // Stat returns a FileInfo describing the named file.
 // If there is an error, it will be of type *os.PathError.
 func (fs Fs) Stat(name string) (os.FileInfo, error) {
@@ -254,7 +244,7 @@ func (fs Fs) Stat(name string) (os.FileInfo, error) {
 			Path: name,
 			Err:  err,
 		}
-	} else if hasTrailingSlash(name) {
+	} else if strings.HasSuffix(name, "/") {
 		// user asked for a directory, but this is a file
 		return FileInfo{name: name}, nil
 		/*
@@ -272,7 +262,7 @@ func (fs Fs) statDirectory(name string) (os.FileInfo, error) {
 	nameClean := path.Clean(name)
 	out, err := fs.s3API.ListObjectsV2(&s3.ListObjectsV2Input{
 		Bucket:  aws.String(fs.bucket),
-		Prefix:  aws.String(trimLeadingSlash(nameClean)),
+		Prefix:  aws.String(strings.TrimPrefix(nameClean, "/")),
 		MaxKeys: aws.Int64(1),
 	})
 	if err != nil {
