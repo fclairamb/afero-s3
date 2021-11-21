@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/afero"
@@ -68,10 +69,10 @@ func (f *File) Readdir(n int) ([]os.FileInfo, error) {
 	}
 	// ListObjects treats leading slashes as part of the directory name
 	// It also needs a trailing slash to list contents of a directory.
-	name := trimLeadingSlash(f.Name()) // + "/"
+	name := strings.TrimPrefix(f.Name(), "/") // + "/"
 
 	// For the root of the bucket, we need to remove any prefix
-	if name != "" {
+	if name != "" && !strings.HasSuffix(name, "/") {
 		name += "/"
 	}
 	output, err := f.fs.s3API.ListObjectsV2(&s3.ListObjectsV2Input{
@@ -93,7 +94,7 @@ func (f *File) Readdir(n int) ([]os.FileInfo, error) {
 		fis = append(fis, NewFileInfo(path.Base("/"+*subfolder.Prefix), true, 0, time.Unix(0, 0)))
 	}
 	for _, fileObject := range output.Contents {
-		if hasTrailingSlash(*fileObject.Key) {
+		if strings.HasSuffix(*fileObject.Key, "/") {
 			// S3 includes <name>/ in the Contents listing for <name>
 			continue
 		}
