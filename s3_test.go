@@ -743,6 +743,35 @@ func TestFileProps(t *testing.T) {
 
 }
 
+func TestFileReaddir(t *testing.T) {
+	fs := GetFs(t)
+	req := require.New(t)
+
+	err := fs.Mkdir("/dir1", 0750)
+	req.NoError(err, "Could not create dir1")
+
+	_, err = fs.Create("/dir1/readme.txt")
+	req.NoError(err, "could not create file")
+
+	t.Run("WithNoTrailingSlash", func(t *testing.T) {
+		dir, err := fs.Open("/dir1")
+		req.NoError(err, "could not open /dir1")
+
+		fis, err := dir.Readdir(1)
+		req.NoError(err, "could not readdir /dir1")
+		req.Len(fis,1)
+	})
+
+	t.Run("WithNoTrailingSlash", func(t *testing.T) {
+		dir, err := fs.Open("/dir1/")
+		req.NoError(err, "could not open /dir1/")
+
+		fis, err := dir.Readdir(1)
+		req.NoError(err, "could not readdir /dir1/")
+		req.Len(fis,1)
+	})
+}
+
 // Source: rog's code from https://groups.google.com/forum/#!topic/golang-nuts/keG78hYt1I0
 func ReadersEqual(r1, r2 io.Reader) (bool, error) {
 	const chunkSize = 8 * 1024 // 8 KB
