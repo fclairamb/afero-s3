@@ -3,10 +3,8 @@ package s3
 
 import (
 	"bytes"
-	"errors"
+	"context"
 	"fmt"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/stretchr/testify/require"
 	"io"
 	"math/rand"
 	"os"
@@ -15,10 +13,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/stretchr/testify/require"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/spf13/afero"
 )
 
@@ -37,23 +36,37 @@ var (
 )
 
 func GetFs(t *testing.T) afero.Fs {
-	return __getS3Fs(t)
+	return __getS3Fs(t, nil, nil)
 }
 
-func __getS3Fs(t *testing.T) *Fs {
-	sess, errSession := session.NewSession(&aws.Config{
-		Credentials:      credentials.NewStaticCredentials("minioadmin", "minioadmin", ""),
-		Endpoint:         aws.String("http://localhost:9000"),
-		Region:           aws.String("eu-west-1"),
-		DisableSSL:       aws.Bool(true),
-		S3ForcePathStyle: aws.Bool(true),
-	})
+func __getS3Fs(t *testing.T, optCfg func(config *aws.Config), optClt func(clt *s3.Client)) *Fs {
+	const defaultRegion = "us-east-1"
 
-	if errSession != nil {
-		t.Fatal("Could not create session:", errSession)
+	creds := aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider("minioadmin", "minioadmin", ""))
+	awsCfg := aws.Config{
+		Credentials: creds,
+		Region:      defaultRegion,
+		EndpointResolverWithOptions: aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
+			return aws.Endpoint{
+				PartitionID:       "aws",
+				URL:               "http://localhost:9000",
+				SigningRegion:     defaultRegion,
+				HostnameImmutable: true,
+			}, nil
+		}),
 	}
 
-	s3Client := s3.New(sess)
+	if optCfg != nil {
+		optCfg(&awsCfg)
+	}
+
+	s3Client := s3.NewFromConfig(awsCfg, func(options *s3.Options) {
+		options.UsePathStyle = true
+	})
+
+	if optClt != nil {
+		optClt(s3Client)
+	}
 
 	// Creating a both non-conflicting and quite easy to understand and diagnose bucket name
 	bucketName := fmt.Sprintf(
@@ -63,11 +76,11 @@ func __getS3Fs(t *testing.T) *Fs {
 		atomic.AddInt32(&bucketCounter, 1),
 	)
 
-	if _, err := s3Client.CreateBucket(&s3.CreateBucketInput{Bucket: aws.String(bucketName)}); err != nil {
+	if _, err := s3Client.CreateBucket(context.Background(), &s3.CreateBucketInput{Bucket: aws.String(bucketName)}); err != nil {
 		t.Fatal("Could not create bucket:", err)
 	}
 
-	fs := NewFs(bucketName, sess)
+	fs := NewFsFromClient(bucketName, s3Client)
 
 	t.Cleanup(func() {
 		if err := fs.RemoveAll("/"); err != nil {
@@ -343,7 +356,7 @@ func TestFileCreate(t *testing.T) {
 	fs := GetFs(t)
 
 	if _, err := fs.Stat("/file1"); err == nil {
-		t.Fatal("We should'nt be able to get a file cachedInfo at this stage")
+		t.Fatal("We shouldn't be able to get a file cachedInfo at this stage")
 	}
 
 	if file, err := fs.Create("/file1"); err != nil {
@@ -482,10 +495,17 @@ func TestFileReaddirnames(t *testing.T) {
 // This test is only here to explain this FS might behave in a strange way
 func TestBadConnection(t *testing.T) {
 	req := require.New(t)
-	fs := __getS3Fs(t)
+	fs := __getS3Fs(t, func(config *aws.Config) {
+		config.EndpointResolverWithOptions = aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
+			return aws.Endpoint{
+				URL: "http://broken",
+			}, nil
+		})
+	}, nil)
 
 	// Let's mess-up the config
-	fs.session.Config.Endpoint = aws.String("http://broken")
+	// &BrokenEndpointResolver{}
+	// Config.Endpoint = aws.String("http://broken")
 
 	t.Run("Read", func(t *testing.T) {
 		// We will fail here because we are checking if the file exists and its type
@@ -567,7 +587,7 @@ func testCreateFile(t *testing.T, fs afero.Fs, name string, content string) {
 		t.Fatal("Could not write content to file", err)
 	}
 	if err := file.Close(); err != nil {
-		t.Fatal("Could not close file")
+		t.Fatal("Could not close file", err)
 	}
 }
 
@@ -632,12 +652,15 @@ func TestChmod(t *testing.T) {
 	}
 	for _, m := range []os.FileMode{0606, 0604} {
 		if err := fs.Chmod(name, m); err != nil {
-			var fail awserr.RequestFailure
-			if errors.As(err, &fail) && fail.Code() == "NotImplemented" {
-				t.Log("Minio doesn't support this...")
-			} else {
-				t.Fatal("Problem setting this", err)
-			}
+			/*
+				var fail awserr.RequestFailure
+				if errors.As(err, &fail) && fail.Code() == "NotImplemented" {
+					t.Log("Minio doesn't support this...")
+				} else {
+					t.Fatal("Problem setting this", err)
+				}
+			*/
+			t.Fatal("Problem setting this", err)
 		}
 	}
 }
@@ -652,7 +675,7 @@ func TestChown(t *testing.T) {
 }
 
 func TestContentType(t *testing.T) {
-	fs := __getS3Fs(t)
+	fs := __getS3Fs(t, nil, nil)
 	req := require.New(t)
 
 	t.Run("MimeChecks", func(t *testing.T) {
@@ -674,7 +697,7 @@ func TestContentType(t *testing.T) {
 
 		// And we check the resulting content-type
 		for fileName, mimeType := range fileToMime {
-			resp, err := fs.s3API.GetObject(&s3.GetObjectInput{
+			resp, err := fs.client.GetObject(context.Background(), &s3.GetObjectInput{
 				Bucket: aws.String(fs.bucket),
 				Key:    aws.String(fileName),
 			})
@@ -687,7 +710,7 @@ func TestContentType(t *testing.T) {
 		_, err := fs.Create("create.png")
 		req.NoError(err)
 
-		resp, err := fs.s3API.GetObject(&s3.GetObjectInput{
+		resp, err := fs.client.GetObject(context.Background(), &s3.GetObjectInput{
 			Bucket: aws.String(fs.bucket),
 			Key:    aws.String("create.png"),
 		})
@@ -704,7 +727,7 @@ func TestContentType(t *testing.T) {
 		testCreateFile(t, fs, "custom-write", "content")
 
 		for _, name := range []string{"custom-create", "custom-write"} {
-			resp, err := fs.s3API.GetObject(&s3.GetObjectInput{
+			resp, err := fs.client.GetObject(context.Background(), &s3.GetObjectInput{
 				Bucket: aws.String(fs.bucket),
 				Key:    aws.String(name),
 			})
@@ -715,7 +738,7 @@ func TestContentType(t *testing.T) {
 }
 
 func TestFileProps(t *testing.T) {
-	fs := __getS3Fs(t)
+	fs := __getS3Fs(t, nil, nil)
 	req := require.New(t)
 
 	t.Run("CacheControl", func(t *testing.T) {
@@ -732,7 +755,7 @@ func TestFileProps(t *testing.T) {
 		testCreateFile(t, fs, "write", "content")
 
 		for _, name := range []string{"create", "write"} {
-			resp, err := fs.s3API.GetObject(&s3.GetObjectInput{
+			resp, err := fs.client.GetObject(context.Background(), &s3.GetObjectInput{
 				Bucket: aws.String(fs.bucket),
 				Key:    aws.String(name),
 			})
@@ -759,7 +782,7 @@ func TestFileReaddir(t *testing.T) {
 
 		fis, err := dir.Readdir(1)
 		req.NoError(err, "could not readdir /dir1")
-		req.Len(fis,1)
+		req.Len(fis, 1)
 	})
 
 	t.Run("WithNoTrailingSlash", func(t *testing.T) {
@@ -768,7 +791,7 @@ func TestFileReaddir(t *testing.T) {
 
 		fis, err := dir.Readdir(1)
 		req.NoError(err, "could not readdir /dir1/")
-		req.Len(fis,1)
+		req.Len(fis, 1)
 	})
 }
 
