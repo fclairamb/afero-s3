@@ -140,10 +140,10 @@ func testWriteFile(t *testing.T, fs afero.Fs, name string, size int) {
 
 func TestFileWrite(t *testing.T) {
 	fs := GetFs(t)
-	testWriteFile(t, fs, "/file-1K", 1024)
-	testWriteFile(t, fs, "/file-1M", 1*1024*1024)
-	testWriteFile(t, fs, "/file-10M", 10*1024*1024)
-	testWriteFile(t, fs, "/file-100M", 100*1024*1024)
+	testWriteFile(t, fs, "file-1K", 1024)
+	testWriteFile(t, fs, "file-1M", 1*1024*1024)
+	testWriteFile(t, fs, "file-10M", 10*1024*1024)
+	testWriteFile(t, fs, "file-100M", 100*1024*1024)
 }
 
 func TestFsName(t *testing.T) {
@@ -355,27 +355,27 @@ func TestWriteAt(t *testing.T) {
 func TestFileCreate(t *testing.T) {
 	fs := GetFs(t)
 
-	if _, err := fs.Stat("/file1"); err == nil {
+	if _, err := fs.Stat("file1"); err == nil {
 		t.Fatal("We shouldn't be able to get a file cachedInfo at this stage")
 	}
 
-	if file, err := fs.Create("/file1"); err != nil {
+	if file, err := fs.Create("file1"); err != nil {
 		t.Fatal("Could not create file:", err)
 	} else if err := file.Close(); err != nil {
 		t.Fatal("Couldn't close file:", err)
 	}
 
-	if stat, err := fs.Stat("/file1"); err != nil {
+	if stat, err := fs.Stat("file1"); err != nil {
 		t.Fatal("Could not access file:", err)
 	} else if stat.Size() != 0 {
 		t.Fatal("File should be empty")
 	}
 
-	if err := fs.Remove("/file1"); err != nil {
+	if err := fs.Remove("file1"); err != nil {
 		t.Fatal("Could not delete file:", err)
 	}
 
-	if _, err := fs.Stat("/file1"); err == nil {
+	if _, err := fs.Stat("file1"); err == nil {
 		t.Fatal("Should not be able to access file")
 	}
 }
@@ -383,21 +383,21 @@ func TestFileCreate(t *testing.T) {
 func TestRemoveAll(t *testing.T) {
 	fs := GetFs(t)
 
-	if err := fs.Mkdir("/dir1", 0750); err != nil {
+	if err := fs.Mkdir("dir1", 0750); err != nil {
 		t.Fatal("Could not create dir1:", err)
 	}
 
-	if err := fs.Mkdir("/dir1/dir2", 0750); err != nil {
+	if err := fs.Mkdir("dir1/dir2", 0750); err != nil {
 		t.Fatal("Could not create dir2:", err)
 	}
 
-	if file, err := fs.Create("/dir1/file1"); err != nil {
+	if file, err := fs.Create("dir1/file1"); err != nil {
 		t.Fatal("Could not create dir2:", err)
 	} else if err := file.Close(); err != nil {
 		t.Fatal("Could not close /dir1/file1 err:", err)
 	}
 
-	if err := fs.RemoveAll("/dir1"); err != nil {
+	if err := fs.RemoveAll("dir1"); err != nil {
 		t.Fatal("Could not delete all files:", err)
 	}
 
@@ -414,11 +414,11 @@ func TestRemoveAll(t *testing.T) {
 
 func TestMkdirAll(t *testing.T) {
 	fs := GetFs(t)
-	if err := fs.MkdirAll("/dir3/dir4", 0755); err != nil {
+	if err := fs.MkdirAll("dir3/dir4", 0755); err != nil {
 		t.Fatal("Could not perform MkdirAll:", err)
 	}
 
-	if _, err := fs.Stat("/dir3/dir4"); err != nil {
+	if _, err := fs.Stat("dir3/dir4"); err != nil {
 		t.Fatal("Could not read dir4:", err)
 	}
 }
@@ -427,19 +427,19 @@ func TestDirHandle(t *testing.T) {
 	fs := GetFs(t)
 
 	// We create a "dir1" directory
-	if err := fs.Mkdir("/dir1", 0750); err != nil {
+	if err := fs.Mkdir("dir1", 0750); err != nil {
 		t.Fatal("Could not create dir:", err)
 	}
 
 	// Then create a "file1" file in it
-	if file, err := fs.Create("/dir1/file1"); err != nil {
+	if file, err := fs.Create("dir1/file1"); err != nil {
 		t.Fatal("Could not create file:", err)
 	} else if err := file.Close(); err != nil {
 		t.Fatal("Couldn't close file:", err)
 	}
 
 	// Opening "dir1" should work
-	if dir1, err := fs.Open("/dir1"); err != nil {
+	if dir1, err := fs.Open("dir1"); err != nil {
 		t.Fatal("Could not open dir1:", err)
 	} else {
 		// Listing files should be OK too
@@ -451,7 +451,7 @@ func TestDirHandle(t *testing.T) {
 	}
 
 	// Opening "dir2" should fail
-	if _, err := fs.Open("/dir2"); err == nil {
+	if _, err := fs.Open("dir2"); err == nil {
 		t.Fatal("Opening /dir2 should have triggered an error !")
 	}
 }
@@ -460,7 +460,7 @@ func TestFileReaddirnames(t *testing.T) {
 	fs := GetFs(t)
 
 	// We create some dirs
-	for _, dir := range []string{"/dir1", "/dir2", "/dir3"} {
+	for _, dir := range []string{"dir1", "dir2", "dir3"} {
 		if err := fs.Mkdir(dir, 0750); err != nil {
 			t.Fatal("Could not create dir:", err)
 		}
@@ -546,18 +546,18 @@ func TestFileStat(t *testing.T) {
 	fs := GetFs(t)
 
 	// We create a "dir1" directory
-	if err := fs.Mkdir("/dir1", 0750); err != nil {
+	if err := fs.Mkdir("dir1", 0750); err != nil {
 		t.Fatal("Could not create dir:", err)
 	}
 
 	// Then create a "file1" file in it
-	if file, err := fs.Create("/dir1/file1"); err != nil {
+	if file, err := fs.Create("dir1/file1"); err != nil {
 		t.Fatal("Could not create file:", err)
 	} else if err := file.Close(); err != nil {
 		t.Fatal("Couldn't close file:", err)
 	}
 
-	if dir1, err := fs.Open("/dir1"); err != nil {
+	if dir1, err := fs.Open("dir1"); err != nil {
 		t.Fatal(err)
 	} else {
 		if stat, err := dir1.Stat(); err != nil {
@@ -567,7 +567,7 @@ func TestFileStat(t *testing.T) {
 		}
 	}
 
-	if file1, err := fs.Open("/dir1/file1"); err != nil {
+	if file1, err := fs.Open("dir1/file1"); err != nil {
 		t.Fatal(err)
 	} else {
 		if stat, err := file1.Stat(); err != nil {
@@ -594,8 +594,8 @@ func testCreateFile(t *testing.T, fs afero.Fs, name string, content string) {
 func TestRename(t *testing.T) {
 	fs := GetFs(t)
 
-	if errMkdirAll := fs.MkdirAll("/dir1/dir2", 0750); errMkdirAll != nil {
-	} else if file, errOpenFile := fs.OpenFile("/dir1/dir2/file1", os.O_WRONLY, 0750); errOpenFile != nil {
+	if errMkdirAll := fs.MkdirAll("dir1/dir2", 0750); errMkdirAll != nil {
+	} else if file, errOpenFile := fs.OpenFile("dir1/dir2/file1", os.O_WRONLY, 0750); errOpenFile != nil {
 		t.Fatal("Couldn't open file:", errOpenFile)
 	} else {
 		if _, errWriteString := file.WriteString("Hello world !"); errWriteString != nil {
@@ -605,15 +605,15 @@ func TestRename(t *testing.T) {
 		}
 	}
 
-	if errRename := fs.Rename("/dir1/dir2/file1", "/dir1/dir2/file2"); errRename != nil {
+	if errRename := fs.Rename("dir1/dir2/file1", "dir1/dir2/file2"); errRename != nil {
 		t.Fatal("Couldn't rename file err:", errRename)
 	}
 
-	if _, err := fs.Stat("/dir1/dir2/file1"); err == nil {
+	if _, err := fs.Stat("dir1/dir2/file1"); err == nil {
 		t.Fatal("File shouldn't exist anymore")
 	}
 
-	if _, err := fs.Stat("/dir1/dir2/file2"); err != nil {
+	if _, err := fs.Stat("dir1/dir2/file2"); err != nil {
 		t.Fatal("Couldn't fetch file cachedInfo:", err)
 	}
 
@@ -622,7 +622,7 @@ func TestRename(t *testing.T) {
 
 func TestFileTime(t *testing.T) {
 	fs := GetFs(t)
-	name := "/dir1/file1"
+	name := "dir1/file1"
 	beforeCreate := time.Now().UTC()
 	// Well, we have a 1-second precision
 	time.Sleep(time.Second)
@@ -645,7 +645,7 @@ func TestFileTime(t *testing.T) {
 
 func TestChmod(t *testing.T) {
 	fs := GetFs(t)
-	name := "/dir1/file1"
+	name := "dir1/file1"
 	testCreateFile(t, fs, name, "Hello world !")
 	if err := fs.Chmod(name, 0600); err != nil {
 		t.Fatal("Couldn't set file to private", err)
@@ -667,7 +667,7 @@ func TestChmod(t *testing.T) {
 
 func TestChown(t *testing.T) {
 	fs := GetFs(t)
-	name := "/dir1/file1"
+	name := "dir1/file1"
 	testCreateFile(t, fs, name, "Hello world !")
 	if err := fs.Chown(name, 1000, 1000); err == nil {
 		t.Fatal("If Chown is supported, we should have a check here")
@@ -770,14 +770,14 @@ func TestFileReaddir(t *testing.T) {
 	fs := GetFs(t)
 	req := require.New(t)
 
-	err := fs.Mkdir("/dir1", 0750)
+	err := fs.Mkdir("dir1", 0750)
 	req.NoError(err, "Could not create dir1")
 
-	_, err = fs.Create("/dir1/readme.txt")
+	_, err = fs.Create("dir1/readme.txt")
 	req.NoError(err, "could not create file")
 
 	t.Run("WithNoTrailingSlash", func(t *testing.T) {
-		dir, err := fs.Open("/dir1")
+		dir, err := fs.Open("dir1")
 		req.NoError(err, "could not open /dir1")
 
 		fis, err := dir.Readdir(1)
@@ -786,7 +786,7 @@ func TestFileReaddir(t *testing.T) {
 	})
 
 	t.Run("WithNoTrailingSlash", func(t *testing.T) {
-		dir, err := fs.Open("/dir1/")
+		dir, err := fs.Open("dir1/")
 		req.NoError(err, "could not open /dir1/")
 
 		fis, err := dir.Readdir(1)
