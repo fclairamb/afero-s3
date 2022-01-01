@@ -8,10 +8,10 @@ import (
 
 // FileInfo implements os.FileInfo for a file in S3.
 type FileInfo struct {
+	modTime     time.Time
 	name        string
 	directory   bool
 	sizeInBytes int64
-	modTime     time.Time
 }
 
 // NewFileInfo creates file cachedInfo.

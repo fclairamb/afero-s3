@@ -23,9 +23,9 @@ import (
 // Fs is an FS object backed by S3.
 type Fs struct {
 	FileProps *UploadedFileProperties // FileProps define the file properties we want to set for all new files
-	bucket    string                  // Bucket name
 	session   *session.Session        // Session config
 	s3API     *s3.S3
+	bucket    string // Bucket name
 }
 
 // UploadedFileProperties defines all the set properties applied to future files

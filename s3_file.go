@@ -20,7 +20,7 @@ import (
 )
 
 // File represents a file in S3.
-// nolint: maligned
+// nolint: govet
 type File struct {
 	fs                       *Fs            // Parent file system
 	name                     string         // Name of the file
@@ -341,7 +341,7 @@ func (f *File) openReadStream(startAt int64) error {
 		return ErrAlreadyOpened
 	}
 
-	var streamRange *string = nil
+	var streamRange *string
 
 	if startAt > 0 {
 		streamRange = aws.String(fmt.Sprintf("bytes=%d-%d", startAt, f.cachedInfo.Size()))
