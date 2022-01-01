@@ -69,22 +69,18 @@ func __getS3Fs(t *testing.T) *Fs {
 
 	fs := NewFs(bucketName, sess)
 
-	// The following cleanup code works fine but testing.T.Cleanup is only available since Go 1.14 and we don't actually
-	// need it for now.
-	/*
-		t.Cleanup(func() {
-			if err := fs.RemoveAll("/"); err != nil {
-				t.Fatal("Could not cleanup bucket:", err)
-				return
-			}
+	t.Cleanup(func() {
+		if err := fs.RemoveAll("/"); err != nil {
+			t.Fatal("Could not cleanup bucket:", err)
+			return
+		}
 
-			// The minio implementation makes the RemoveAll("/") also delete the simulated S3 bucket, so we *should* but
-			// *can't* use the bucket deletion.
-			// if _, err := s3Client.DeleteBucket(&s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
-			//   t.Fatal("Could not delete bucket:", err)
-			// }
-		})
-	*/
+		// The minio implementation makes the RemoveAll("/") also delete the simulated S3 bucket, so we *should* but
+		// *can't* use the bucket deletion.
+		// if _, err := s3Client.DeleteBucket(&s3.DeleteBucketInput{Bucket: aws.String(bucketName)}); err != nil {
+		//   t.Fatal("Could not delete bucket:", err)
+		// }
+	})
 
 	return fs
 }
@@ -202,32 +198,20 @@ func TestFileSeekBig(t *testing.T) {
 //nolint: gocyclo, funlen
 func TestFileSeekBasic(t *testing.T) {
 	fs := GetFs(t)
+	req := require.New(t)
 
 	{ // Writing an initial file
-		file, errOpen := fs.OpenFile("file1", os.O_WRONLY, 0777)
-		if errOpen != nil {
-			t.Fatal("Could not open file:", errOpen)
-		}
+		file, err := fs.OpenFile("file1", os.O_WRONLY, 0777)
+		req.NoError(err)
 
-		if _, err := file.WriteString("Hello world !"); err != nil {
-			t.Fatal("Could not write file:", err)
-		}
+		_, err = file.WriteString("Hello world !")
+		req.NoError(err)
 
-		if errClose := file.Close(); errClose != nil {
-			t.Fatal("Couldn't close file", errClose)
-		}
+		req.NoError(file.Close())
 	}
 
 	file, errOpen := fs.Open("file1")
-	if errOpen != nil {
-		t.Fatal("Could not open file:", errOpen)
-	}
-
-	defer func() {
-		if err := file.Close(); err != nil {
-			t.Fatal("Could not close file:", err)
-		}
-	}()
+	req.NoError(errOpen)
 
 	buffer := make([]byte, 5)
 
@@ -284,10 +268,15 @@ func TestFileSeekBasic(t *testing.T) {
 			t.Fatal("Could not read buffer:", err)
 		}
 
-		if string(buffer) != "rld !" {
-			t.Fatal("Bad fetch:", string(buffer))
-		}
+		req.Equal("rld !", string(buffer))
 	}
+
+	// Let's close it
+	req.NoError(file.Close())
+
+	// And do an other seek
+	_, err := file.Seek(10, io.SeekStart)
+	req.EqualError(err, "File is closed")
 }
 
 func TestReadAt(t *testing.T) {
@@ -644,7 +633,7 @@ func TestChmod(t *testing.T) {
 	for _, m := range []os.FileMode{0606, 0604} {
 		if err := fs.Chmod(name, m); err != nil {
 			var fail awserr.RequestFailure
-			if errors.As(err, &fail) && fail.Code() == "XMinioAdminInvalidArgument" {
+			if errors.As(err, &fail) && fail.Code() == "NotImplemented" {
 				t.Log("Minio doesn't support this...")
 			} else {
 				t.Fatal("Problem setting this", err)
@@ -849,4 +838,9 @@ func TestMain(m *testing.M) {
 		}
 	}
 	os.Exit(rc)
+}
+
+func TestFileInfo(t *testing.T) {
+	fi := NewFileInfo("name", false, 1024, time.Now())
+	require.Nil(t, fi.Sys())
 }

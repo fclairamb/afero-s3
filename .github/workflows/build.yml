@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-20.04
     services:
       minio:
-        image: fclairamb/minio-github-actions:v0.1
+        image: fclairamb/minio-github-actions:v0.2
         # env:
         #  MINIO_COMMAND: server
         ports:
@@ -22,9 +22,9 @@ jobs:
 
     strategy:
       matrix:
-        go: [ 1.15, 1.14, 1.13 ]
+        go: [ 1.17, 1.16, 1.15 ]
         include:
-          - go: 1.15
+          - go: 1.17
             lint: true
   
     # Steps represent a sequence of tasks that will be executed as part of the job
@@ -37,7 +37,7 @@ jobs:
         if: matrix.lint
         uses: golangci/golangci-lint-action@v2
         with:
-          version: v1.33
+          version: v1.43
 
       # Install Go
       - name: Setup go

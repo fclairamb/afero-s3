@@ -1,7 +1,7 @@
 # S3 Backend for Afero
 
 ![Build](https://github.com/fclairamb/afero-s3/workflows/Build/badge.svg)
-[![codecov](https://codecov.io/gh/fclairamb/afero-s3/branch/master/graph/badge.svg?token=OZ2WZ969O5)](https://codecov.io/gh/fclairamb/afero-s3)
+[![codecov](https://codecov.io/gh/fclairamb/afero-s3/branch/main/graph/badge.svg?token=OZ2WZ969O5)](https://codecov.io/gh/fclairamb/afero-s3)
 [![Go Report Card](https://goreportcard.com/badge/fclairamb/afero-s3)](https://goreportcard.com/report/fclairamb/afero-s3)
 [![GoDoc](https://godoc.org/github.com/fclairamb/afero-s3?status.svg)](https://godoc.org/github.com/fclairamb/afero-s3)
 
@@ -48,7 +48,7 @@ func main() {
   s3Fs := s3.NewFs(bucket, sess)
 
   // And do your thing
-  file, _ := fs.OpenFile(name, os.O_WRONLY, 0777)
+  file, _ := fs.OpenFile("file.txt", os.O_WRONLY, 0777)
   file.WriteString("Hello world !")
   file.Close()
 }
