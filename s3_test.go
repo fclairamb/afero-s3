@@ -4,7 +4,9 @@ package s3
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"github.com/aws/smithy-go"
 	"io"
 	"math/rand"
 	"os"
@@ -36,10 +38,14 @@ var (
 )
 
 func GetFs(t *testing.T) afero.Fs {
-	return __getS3Fs(t, nil, nil)
+	fs, err := __getS3Fs(t, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return fs
 }
 
-func __getS3Fs(t *testing.T, optCfg func(config *aws.Config), optClt func(clt *s3.Client)) *Fs {
+func __getS3Fs(t *testing.T, optCfg func(config *aws.Config), optClt func(clt *s3.Client)) (*Fs, error) {
 	const defaultRegion = "us-east-1"
 
 	creds := aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider("minioadmin", "minioadmin", ""))
@@ -76,11 +82,11 @@ func __getS3Fs(t *testing.T, optCfg func(config *aws.Config), optClt func(clt *s
 		atomic.AddInt32(&bucketCounter, 1),
 	)
 
-	if _, err := s3Client.CreateBucket(context.Background(), &s3.CreateBucketInput{Bucket: aws.String(bucketName)}); err != nil {
-		t.Fatal("Could not create bucket:", err)
-	}
-
 	fs := NewFsFromClient(bucketName, s3Client)
+
+	if _, err := s3Client.CreateBucket(context.Background(), &s3.CreateBucketInput{Bucket: aws.String(bucketName)}); err != nil {
+		return nil, fmt.Errorf("Could not create bucket: %w", err)
+	}
 
 	t.Cleanup(func() {
 		if err := fs.RemoveAll("/"); err != nil {
@@ -95,7 +101,7 @@ func __getS3Fs(t *testing.T, optCfg func(config *aws.Config), optClt func(clt *s
 		// }
 	})
 
-	return fs
+	return fs, nil
 }
 
 func testWriteFile(t *testing.T, fs afero.Fs, name string, size int) {
@@ -495,7 +501,7 @@ func TestFileReaddirnames(t *testing.T) {
 // This test is only here to explain this FS might behave in a strange way
 func TestBadConnection(t *testing.T) {
 	req := require.New(t)
-	fs := __getS3Fs(t, func(config *aws.Config) {
+	fs, err := __getS3Fs(t, func(config *aws.Config) {
 		config.EndpointResolverWithOptions = aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
 			return aws.Endpoint{
 				URL: "http://broken",
@@ -503,43 +509,48 @@ func TestBadConnection(t *testing.T) {
 		})
 	}, nil)
 
+	req.Nil(fs)
+	req.Error(err)
+
 	// Let's mess-up the config
 	// &BrokenEndpointResolver{}
 	// Config.Endpoint = aws.String("http://broken")
 
-	t.Run("Read", func(t *testing.T) {
-		// We will fail here because we are checking if the file exists and its type
-		// before allowing to read it.
-		_, err := fs.Open("file")
-		req.Error(err)
-	})
+	/*
+		t.Run("Read", func(t *testing.T) {
+			// We will fail here because we are checking if the file exists and its type
+			// before allowing to read it.
+			_, err := fs.Open("file")
+			req.Error(err)
+		})
 
-	t.Run("Write", func(t *testing.T) {
-		// We open the file (but actually nothing happens)
-		f, err := fs.OpenFile("file", os.O_WRONLY, 0777)
-		req.NoError(err)
+		t.Run("Write", func(t *testing.T) {
+			// We open the file (but actually nothing happens)
+			f, err := fs.OpenFile("file", os.O_WRONLY, 0777)
+			req.NoError(err)
 
-		// We write something to the s3.uploader that will itself wait for its buffer to be filled
-		// before sending the first request.
-		_, err = f.WriteString("hello ")
-		req.NoError(err)
+			// We write something to the s3.uploader that will itself wait for its buffer to be filled
+			// before sending the first request.
+			_, err = f.WriteString("hello ")
+			req.NoError(err)
 
-		// At this point, something will have failed
-		req.Error(f.Close())
-	})
+			// At this point, something will have failed
+			req.Error(f.Close())
+		})
 
-	// On a "big" file things don't work the same way though
-	t.Run("WriteBig", func(t *testing.T) {
-		r := NewLimitedReader(rand.New(rand.NewSource(0)), 10*1024*1024)
+		// On a "big" file things don't work the same way though
+		t.Run("WriteBig", func(t *testing.T) {
+			r := NewLimitedReader(rand.New(rand.NewSource(0)), 10*1024*1024)
 
-		f, err := fs.OpenFile("file", os.O_WRONLY, 0777)
-		req.NoError(err)
+			f, err := fs.OpenFile("file", os.O_WRONLY, 0777)
+			req.NoError(err)
 
-		written, err := io.Copy(f, r)
-		req.Error(err)
-		// The default AWS SDK buffer size is 5MB (as such, an SDK update might break this test)
-		req.Equal(int64(5*1024*1024), written, "Should fail at 5MB")
-	})
+			written, err := io.Copy(f, r)
+			req.Error(err)
+			// The default AWS SDK buffer size is 5MB (as such, an SDK update might break this test)
+			req.Equal(int64(5*1024*1024), written, "Should fail at 5MB")
+		})
+	*/
 }
 
 func TestFileStat(t *testing.T) {
@@ -652,15 +663,12 @@ func TestChmod(t *testing.T) {
 	}
 	for _, m := range []os.FileMode{0606, 0604} {
 		if err := fs.Chmod(name, m); err != nil {
-			/*
-				var fail awserr.RequestFailure
-				if errors.As(err, &fail) && fail.Code() == "NotImplemented" {
-					t.Log("Minio doesn't support this...")
-				} else {
-					t.Fatal("Problem setting this", err)
-				}
-			*/
-			t.Fatal("Problem setting this", err)
+			fail := &smithy.OperationError{}
+			if errors.As(err, &fail) && fail.OperationName == "PutObjectAcl" {
+				t.Log("Minio doesn't support this...", err)
+			} else {
+				t.Fatal("Problem setting this", err)
+			}
 		}
 	}
 }
@@ -675,8 +683,11 @@ func TestChown(t *testing.T) {
 }
 
 func TestContentType(t *testing.T) {
-	fs := __getS3Fs(t, nil, nil)
 	req := require.New(t)
+
+	fs, err := __getS3Fs(t, nil, nil)
+
+	req.NoError(err)
 
 	t.Run("MimeChecks", func(t *testing.T) {
 		fileToMime := map[string]string{
@@ -738,8 +749,11 @@ func TestContentType(t *testing.T) {
 }
 
 func TestFileProps(t *testing.T) {
-	fs := __getS3Fs(t, nil, nil)
 	req := require.New(t)
+
+	fs, err := __getS3Fs(t, nil, nil)
+
+	req.NoError(err)
 
 	t.Run("CacheControl", func(t *testing.T) {
 		cacheControl := "Cache-Control: max-age=300, max-stale=120"

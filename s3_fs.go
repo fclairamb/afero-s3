@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go"
 	"github.com/spf13/afero"
 )
 
@@ -36,7 +37,7 @@ type UploadedFileProperties struct {
 	ACL          string  // ACL defines the right to apply
 }
 
-// NewFsFromConfig creates a new Fs object writing files to a given S3 bucket.
+// NewFsFromConfig creates a new Fs instance from an AWS Config
 // nolint: gocritic
 // Disabling linting, because it's OK to copy this object, it's not very frequent
 func NewFsFromConfig(bucket string, config aws.Config) *Fs {
@@ -46,6 +47,7 @@ func NewFsFromConfig(bucket string, config aws.Config) *Fs {
 	}
 }
 
+// NewFsFromClient creates a new Fs instance from a S3 client
 func NewFsFromClient(bucket string, client *s3.Client) *Fs {
 	return &Fs{
 		bucket: bucket,
@@ -220,7 +222,7 @@ func (fs *Fs) Rename(oldname, newname string) error {
 	}
 	_, err := fs.client.CopyObject(context.Background(), &s3.CopyObjectInput{
 		Bucket:     aws.String(fs.bucket),
-		CopySource: aws.String(fs.bucket + oldname),
+		CopySource: aws.String(fs.bucket + "/" + oldname),
 		Key:        aws.String(newname),
 	})
 	if err != nil {
@@ -241,15 +243,14 @@ func (fs *Fs) Stat(name string) (os.FileInfo, error) {
 		Key:    aws.String(name),
 	})
 	if err != nil {
-		/*
-			var errRequestFailure smithy.Re.RequestFailure
-			if errors.As(err, &errRequestFailure) {
-				if errRequestFailure.StatusCode() == 404 {
-					statDir, errStat := fs.statDirectory(name)
-					return statDir, errStat
-				}
+		errOp := &smithy.OperationError{}
+		if errors.As(err, &errOp) {
+			if errOp.OperationName == "HeadObject" {
+				statDir, errStat := fs.statDirectory(name)
+				return statDir, errStat
 			}
-		*/
+		}
+
 		return FileInfo{}, &os.PathError{
 			Op:   "stat",
 			Path: name,
