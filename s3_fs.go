@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -100,6 +101,7 @@ func (fs Fs) Create(name string) (afero.File, error) {
 
 // Mkdir makes a directory in S3.
 func (fs Fs) Mkdir(name string, perm os.FileMode) error {
+	name = sanitize(name)
 	file, err := fs.OpenFile(fmt.Sprintf("%s/", path.Clean(name)), os.O_CREATE, perm)
 	if err == nil {
 		err = file.Close()
@@ -114,11 +116,13 @@ func (fs Fs) MkdirAll(path string, perm os.FileMode) error {
 
 // Open a file for reading.
 func (fs *Fs) Open(name string) (afero.File, error) {
+	name = sanitize(name)
 	return fs.OpenFile(name, os.O_RDONLY, 0777)
 }
 
 // OpenFile opens a file.
 func (fs *Fs) OpenFile(name string, flag int, _ os.FileMode) (afero.File, error) {
+	name = sanitize(name)
 	file := NewFile(fs, name)
 
 	// Reading and writing is technically supported but can't lead to anything that makes sense
@@ -160,6 +164,7 @@ func (fs *Fs) OpenFile(name string, flag int, _ os.FileMode) (afero.File, error)
 
 // Remove a file
 func (fs Fs) Remove(name string) error {
+	name = sanitize(name)
 	if _, err := fs.Stat(name); err != nil {
 		return err
 	}
@@ -177,6 +182,7 @@ func (fs Fs) forceRemove(name string) error {
 
 // RemoveAll removes a path.
 func (fs *Fs) RemoveAll(name string) error {
+	name = sanitize(name)
 	s3dir := NewFile(fs, name)
 	fis, err := s3dir.Readdir(0)
 	if err != nil {
@@ -206,6 +212,9 @@ func (fs *Fs) RemoveAll(name string) error {
 // will copy the file to an object with the new name and then delete
 // the original.
 func (fs Fs) Rename(oldname, newname string) error {
+	oldname = sanitize(newname)
+	newname = sanitize(oldname)
+
 	if oldname == newname {
 		return nil
 	}
@@ -227,6 +236,7 @@ func (fs Fs) Rename(oldname, newname string) error {
 // Stat returns a FileInfo describing the named file.
 // If there is an error, it will be of type *os.PathError.
 func (fs Fs) Stat(name string) (os.FileInfo, error) {
+	name = sanitize(name)
 	out, err := fs.s3API.HeadObject(&s3.HeadObjectInput{
 		Bucket: aws.String(fs.bucket),
 		Key:    aws.String(name),
@@ -284,6 +294,7 @@ func (fs Fs) statDirectory(name string) (os.FileInfo, error) {
 
 // Chmod doesn't exists in S3 but could be implemented by analyzing ACLs
 func (fs Fs) Chmod(name string, mode os.FileMode) error {
+	name = sanitize(name)
 	var acl string
 
 	otherRead := mode&(1<<2) != 0
@@ -345,4 +356,13 @@ func applyFileWriteProps(req *s3manager.UploadInput, p *UploadedFileProperties) 
 	if p.ContentType != nil {
 		req.ContentType = p.ContentType
 	}
+}
+
+// sanitize name to ensure it uses forward slash paths even on Windows
+// systems.
+func sanitize(name string) string {
+	if runtime.GOOS == "windows" {
+		return strings.ReplaceAll(name, "\\", "/")
+	}
+	return name
 }
