@@ -213,6 +213,10 @@ func (f *File) Close() error {
 // It returns the number of bytes read and an error, if any.
 // EOF is signaled by a zero count with err set to io.EOF.
 func (f *File) Read(p []byte) (int, error) {
+	if f.streamRead == nil {
+		return 0, io.EOF
+	}
+
 	n, err := f.streamRead.Read(p)
 
 	if err == nil {
