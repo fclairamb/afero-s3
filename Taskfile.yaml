@@ -1,0 +1,28 @@
+version: "3"
+
+dotenv: [".env"]
+
+tasks:
+  bingo:
+    cmds:
+      - make -f .bingo/Variables.mk
+
+  pre-test:
+    status:
+      - test $(docker ps | grep miniotest | awk '{print $1}')
+    cmds:
+      - docker run --rm -d --name miniotest -p 9000:9000 fclairamb/minio-github-actions:v0.2
+
+  post-test:
+    cmds:
+      - docker kill miniotest
+
+  lint:
+    cmds:
+      - $GOBIN/golangci-lint-v1.45.2 run ./...
+
+  test:
+    cmds:
+      - task: pre-test
+      - defer: { task: post-test }
+      - go test -cover -v ./...

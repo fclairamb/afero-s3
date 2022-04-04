@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/aws/smithy-go"
 	"io"
 	"math/rand"
 	"os"
@@ -14,6 +13,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/aws/smithy-go"
 
 	"github.com/stretchr/testify/require"
 
@@ -702,7 +703,7 @@ func TestContentType(t *testing.T) {
 		}
 
 		// We write each file
-		for fileName, _ := range fileToMime {
+		for fileName := range fileToMime {
 			testCreateFile(t, fs, fileName, "content")
 		}
 

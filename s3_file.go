@@ -21,7 +21,6 @@ import (
 )
 
 // File represents a file in S3.
-// nolint: govet
 type File struct {
 	fs                       *Fs            // Parent file system
 	name                     string         // Name of the file
@@ -142,6 +141,7 @@ func (f *File) Readdirnames(n int) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	// nolint: makezero  // we know the exact length
 	names := make([]string, len(fi))
 	for i, f := range fi {
 		_, names[i] = path.Split(f.Name())
@@ -174,7 +174,8 @@ func (f *File) Truncate(int64) error {
 // WriteString is like Write, but writes the contents of string s rather than
 // a slice of bytes.
 func (f *File) WriteString(s string) (int, error) {
-	return f.Write([]byte(s)) // nolint: gocritic
+	// nolint: gocritic // can't use f.WriteString because we are implemnting it
+	return f.Write([]byte(s))
 }
 
 // Close closes the File, rendering it unusable for I/O.
@@ -235,7 +236,7 @@ func (f *File) ReadAt(p []byte, off int64) (n int, err error) {
 		return
 	}
 	n, err = f.Read(p)
-	return
+	return n, err
 }
 
 // Seek sets the offset for the next Read or Write on file to offset, interpreted
@@ -373,5 +374,5 @@ func (f *File) WriteAt(p []byte, off int64) (n int, err error) {
 		return
 	}
 	n, err = f.Write(p)
-	return
+	return n, err
 }

@@ -38,8 +38,7 @@ type UploadedFileProperties struct {
 }
 
 // NewFsFromConfig creates a new Fs instance from an AWS Config
-// nolint: gocritic
-// Disabling linting, because it's OK to copy this object, it's not very frequent
+// nolint: gocritic // it's OK to copy this object, it's not very frequent
 func NewFsFromConfig(bucket string, config aws.Config) *Fs {
 	return &Fs{
 		bucket: bucket,
