@@ -193,7 +193,7 @@ linters:
         - misspell
         - nakedret
         - prealloc
-        - staticcheck
+        # - staticcheck --> temporary disabling it
         - structcheck
         - exportloopref
         - typecheck
