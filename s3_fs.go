@@ -9,7 +9,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"runtime"
+	"regexp"
 	"strings"
 	"time"
 
@@ -367,11 +367,21 @@ func applyFileWriteProps(req *s3manager.UploadInput, p *UploadedFileProperties) 
 	}
 }
 
+// volumePrefixRegex matches the windows volume identifier eg "C:".
+var volumePrefixRegex = regexp.MustCompile(`^[[:alpha:]]:`)
+
 // sanitize name to ensure it uses forward slash paths even on Windows
 // systems.
 func sanitize(name string) string {
-	if runtime.GOOS == "windows" {
-		return strings.ReplaceAll(name, "\\", "/")
+	if strings.TrimSpace(name) == "" {
+		return name
+	}
+	name = volumePrefixRegex.ReplaceAllString(name, "")
+	name = strings.ReplaceAll(name, "\\", "/")
+	hasTrailingSlash := strings.HasSuffix(name, "/")
+	name = path.Clean(name)
+	if hasTrailingSlash {
+		name += "/"
 	}
 	return name
 }
