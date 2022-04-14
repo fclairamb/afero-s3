@@ -75,9 +75,9 @@ func (f *File) Readdir(n int) ([]os.FileInfo, error) {
 	if name != "" && !strings.HasSuffix(name, "/") {
 		name += "/"
 	}
-	output, err := f.fs.S3API.ListObjectsV2(&s3.ListObjectsV2Input{
+	output, err := f.fs.s3API.ListObjectsV2(&s3.ListObjectsV2Input{
 		ContinuationToken: f.readdirContinuationToken,
-		Bucket:            aws.String(f.fs.Bucket),
+		Bucket:            aws.String(f.fs.bucket),
 		Prefix:            aws.String(name),
 		Delimiter:         aws.String("/"),
 		MaxKeys:           aws.Int64(int64(n)),
@@ -213,10 +213,6 @@ func (f *File) Close() error {
 // It returns the number of bytes read and an error, if any.
 // EOF is signaled by a zero count with err set to io.EOF.
 func (f *File) Read(p []byte) (int, error) {
-	if f.streamRead == nil {
-		return 0, io.EOF
-	}
-
 	n, err := f.streamRead.Read(p)
 
 	if err == nil {
@@ -308,12 +304,12 @@ func (f *File) openWriteStream() error {
 	f.streamWriteCloseErr = make(chan error)
 	f.streamWrite = writer
 
-	uploader := s3manager.NewUploader(f.fs.Session)
+	uploader := s3manager.NewUploader(f.fs.session)
 	uploader.Concurrency = 1
 
 	go func() {
 		input := &s3manager.UploadInput{
-			Bucket: aws.String(f.fs.Bucket),
+			Bucket: aws.String(f.fs.bucket),
 			Key:    aws.String(f.name),
 			Body:   reader,
 		}
@@ -351,8 +347,8 @@ func (f *File) openReadStream(startAt int64) error {
 		streamRange = aws.String(fmt.Sprintf("bytes=%d-%d", startAt, f.cachedInfo.Size()))
 	}
 
-	resp, err := f.fs.S3API.GetObject(&s3.GetObjectInput{
-		Bucket: aws.String(f.fs.Bucket),
+	resp, err := f.fs.s3API.GetObject(&s3.GetObjectInput{
+		Bucket: aws.String(f.fs.bucket),
 		Key:    aws.String(f.name),
 		Range:  streamRange,
 	})
