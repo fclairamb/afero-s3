@@ -3,7 +3,7 @@ module github.com/fclairamb/afero-s3
 go 1.18
 
 require (
-	github.com/aws/aws-sdk-go v1.44.66
+	github.com/aws/aws-sdk-go v1.44.67
 	github.com/spf13/afero v1.9.2
 	github.com/stretchr/testify v1.8.0
 )
