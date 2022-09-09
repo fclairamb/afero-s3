@@ -215,6 +215,7 @@ func (f *File) Close() error {
 // It returns the number of bytes read and an error, if any.
 // EOF is signaled by a zero count with err set to io.EOF.
 func (f *File) Read(p []byte) (int, error) {
+	// if you want RDWR, then use a CopyOnWriteFs on top of this
 	var err error
 	// if there is not currently a stream, attempt to open a stream at the current offset
 	if f.streamRead == nil {
@@ -223,7 +224,7 @@ func (f *File) Read(p []byte) (int, error) {
 			return 0, err
 		}
 	}
-	// now read that stream
+	// otherwise, read the stream
 	n, err := f.streamRead.Read(p)
 	if err == io.EOF {
 		if f.streamRead != nil {
@@ -236,7 +237,8 @@ func (f *File) Read(p []byte) (int, error) {
 	// increase the offset with the missing bytes. return EOF is we are done reading the whole file
 	f.streamReadOffset += int64(n)
 	if f.streamReadOffset >= f.cachedInfo.Size() {
-		// return an EOF and ignore whatever error the streamRead gave us (is this right?)
+		// return an EOF, as we have read to the end of the file
+		// this means that readall should function properly.
 		return int(n), io.EOF
 	}
 

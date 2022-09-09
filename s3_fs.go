@@ -145,6 +145,8 @@ func (fs *Fs) OpenFile(name string, flag int, _ os.FileMode) (afero.File, error)
 		return file, file.openWriteStream()
 	}
 
+	// otherwise, assume it's read only
+
 	info, err := file.Stat()
 
 	if err != nil {
