@@ -472,6 +472,8 @@ github.com/aws/aws-sdk-go v1.44.153 h1:KfN5URb9O/Fk48xHrAinrPV2DzPcLa0cd9yo1ax5K
 github.com/aws/aws-sdk-go v1.44.153/go.mod h1:aVsgQcEevwlmQ7qHE9I3h+dtQgpqhFB+i8Phjh7fkwI=
 github.com/aws/aws-sdk-go v1.44.154 h1:2TaEC8JIM/t7Fu+FBmdOBK5jFUAVL07tbpfJsLuVo3Q=
 github.com/aws/aws-sdk-go v1.44.154/go.mod h1:aVsgQcEevwlmQ7qHE9I3h+dtQgpqhFB+i8Phjh7fkwI=
+github.com/aws/aws-sdk-go v1.44.155 h1:PMHMuUS0atPD4LhiXuYrLasrlIm4u3lpNQBl9h+Lr2s=
+github.com/aws/aws-sdk-go v1.44.155/go.mod h1:aVsgQcEevwlmQ7qHE9I3h+dtQgpqhFB+i8Phjh7fkwI=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
 github.com/chzyer/logex v1.1.10/go.mod h1:+Ywpsq7O8HXn0nuIou7OrIPyXbp3wmkHB+jjWRnGsAI=
 github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e/go.mod h1:nSuG5e5PlCu98SY8svDHJxuZscDgtXS6KTTbou5AhLI=
