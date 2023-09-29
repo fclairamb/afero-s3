@@ -5,8 +5,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/stretchr/testify/require"
 	"io"
 	"math/rand"
 	"os"
@@ -14,6 +12,9 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/stretchr/testify/require"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -67,7 +68,7 @@ func __getS3Fs(t *testing.T) *Fs {
 		t.Fatal("Could not create bucket:", err)
 	}
 
-	fs := NewFs(bucketName, sess)
+	fs := NewFs(bucketName, sess, "")
 
 	t.Cleanup(func() {
 		if err := fs.RemoveAll("/"); err != nil {
@@ -195,7 +196,7 @@ func TestFileSeekBig(t *testing.T) {
 	}
 }
 
-//nolint: gocyclo, funlen
+// nolint: gocyclo, funlen
 func TestFileSeekBasic(t *testing.T) {
 	fs := GetFs(t)
 	req := require.New(t)
@@ -759,7 +760,7 @@ func TestFileReaddir(t *testing.T) {
 
 		fis, err := dir.Readdir(1)
 		req.NoError(err, "could not readdir /dir1")
-		req.Len(fis,1)
+		req.Len(fis, 1)
 	})
 
 	t.Run("WithNoTrailingSlash", func(t *testing.T) {
@@ -768,7 +769,7 @@ func TestFileReaddir(t *testing.T) {
 
 		fis, err := dir.Readdir(1)
 		req.NoError(err, "could not readdir /dir1/")
-		req.Len(fis,1)
+		req.Len(fis, 1)
 	})
 }
 

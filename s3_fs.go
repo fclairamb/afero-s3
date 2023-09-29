@@ -25,6 +25,7 @@ type Fs struct {
 	FileProps *UploadedFileProperties // FileProps define the file properties we want to set for all new files
 	session   *session.Session        // Session config
 	s3API     *s3.S3
+	prefix    string
 	bucket    string // Bucket name
 }
 
@@ -36,11 +37,12 @@ type UploadedFileProperties struct {
 }
 
 // NewFs creates a new Fs object writing files to a given S3 bucket.
-func NewFs(bucket string, session *session.Session) *Fs {
+func NewFs(bucket string, session *session.Session, prefix string) *Fs {
 	s3Api := s3.New(session)
 	return &Fs{
 		bucket:  bucket,
 		session: session,
+		prefix:  prefix,
 		s3API:   s3Api,
 	}
 }
@@ -60,8 +62,19 @@ var ErrInvalidSeek = errors.New("invalid seek offset")
 // Name returns the type of FS object this is: Fs.
 func (Fs) Name() string { return "s3" }
 
+func (fs Fs) GetPath(path string) string {
+	prefix := fs.prefix
+	if strings.HasPrefix(path, prefix) {
+		return path
+	}
+
+	bpath := filepath.Clean(fs.prefix)
+	return filepath.Clean(filepath.Join(bpath, path))
+}
+
 // Create a file.
-func (fs Fs) Create(name string) (afero.File, error) {
+func (fs Fs) Create(in_name string) (afero.File, error) {
+	name := fs.GetPath(in_name)
 	{ // It's faster to trigger an explicit empty put object than opening a file for write, closing it and re-opening it
 		req := &s3.PutObjectInput{
 			Bucket: aws.String(fs.bucket),
@@ -99,7 +112,8 @@ func (fs Fs) Create(name string) (afero.File, error) {
 }
 
 // Mkdir makes a directory in S3.
-func (fs Fs) Mkdir(name string, perm os.FileMode) error {
+func (fs Fs) Mkdir(in_name string, perm os.FileMode) error {
+	name := fs.GetPath(in_name)
 	file, err := fs.OpenFile(fmt.Sprintf("%s/", path.Clean(name)), os.O_CREATE, perm)
 	if err == nil {
 		err = file.Close()
@@ -108,18 +122,21 @@ func (fs Fs) Mkdir(name string, perm os.FileMode) error {
 }
 
 // MkdirAll creates a directory and all parent directories if necessary.
-func (fs Fs) MkdirAll(path string, perm os.FileMode) error {
+func (fs Fs) MkdirAll(in_path string, perm os.FileMode) error {
+	path := fs.GetPath(in_path)
 	return fs.Mkdir(path, perm)
 }
 
 // Open a file for reading.
-func (fs *Fs) Open(name string) (afero.File, error) {
+func (fs Fs) Open(in_name string) (afero.File, error) {
+	name := fs.GetPath(in_name)
 	return fs.OpenFile(name, os.O_RDONLY, 0777)
 }
 
 // OpenFile opens a file.
-func (fs *Fs) OpenFile(name string, flag int, _ os.FileMode) (afero.File, error) {
-	file := NewFile(fs, name)
+func (fs Fs) OpenFile(in_name string, flag int, _ os.FileMode) (afero.File, error) {
+	name := fs.GetPath(in_name)
+	file := NewFile(&fs, name)
 
 	// Reading and writing is technically supported but can't lead to anything that makes sense
 	if flag&os.O_RDWR != 0 {
@@ -159,15 +176,27 @@ func (fs *Fs) OpenFile(name string, flag int, _ os.FileMode) (afero.File, error)
 }
 
 // Remove a file
-func (fs Fs) Remove(name string) error {
+func (fs Fs) Remove(in_name string) error {
+	name := fs.GetPath(in_name)
 	if _, err := fs.Stat(name); err != nil {
 		return err
 	}
 	return fs.forceRemove(name)
 }
 
+func (fs Fs) RemoveDir(name string) error {
+	println("DELETE")
+	name = fs.GetPath(name)
+	_, err := fs.s3API.DeleteObject(&s3.DeleteObjectInput{
+		Bucket: aws.String(fs.bucket),
+		Key:    aws.String(fmt.Sprintf("%s/", name)),
+	})
+	return err
+}
+
 // forceRemove doesn't error if a file does not exist.
-func (fs Fs) forceRemove(name string) error {
+func (fs Fs) forceRemove(in_name string) error {
+	name := fs.GetPath(in_name)
 	_, err := fs.s3API.DeleteObject(&s3.DeleteObjectInput{
 		Bucket: aws.String(fs.bucket),
 		Key:    aws.String(name),
@@ -176,8 +205,9 @@ func (fs Fs) forceRemove(name string) error {
 }
 
 // RemoveAll removes a path.
-func (fs *Fs) RemoveAll(name string) error {
-	s3dir := NewFile(fs, name)
+func (fs Fs) RemoveAll(in_name string) error {
+	name := fs.GetPath(in_name)
+	s3dir := NewFile(&fs, name)
 	fis, err := s3dir.Readdir(0)
 	if err != nil {
 		return err
@@ -205,7 +235,9 @@ func (fs *Fs) RemoveAll(name string) error {
 // There is no method to directly rename an S3 object, so the Rename
 // will copy the file to an object with the new name and then delete
 // the original.
-func (fs Fs) Rename(oldname, newname string) error {
+func (fs Fs) Rename(in_oldname, in_newname string) error {
+	oldname := fs.GetPath(in_oldname)
+	newname := fs.GetPath(in_newname)
 	if oldname == newname {
 		return nil
 	}
@@ -226,10 +258,12 @@ func (fs Fs) Rename(oldname, newname string) error {
 
 // Stat returns a FileInfo describing the named file.
 // If there is an error, it will be of type *os.PathError.
-func (fs Fs) Stat(name string) (os.FileInfo, error) {
+func (fs Fs) Stat(in_name string) (os.FileInfo, error) {
+	name := fs.GetPath(in_name)
 	if name == "/" {
 		return NewFileInfo(name, true, 0, time.Unix(0, 0)), nil
 	}
+
 	out, err := fs.s3API.HeadObject(&s3.HeadObjectInput{
 		Bucket: aws.String(fs.bucket),
 		Key:    aws.String(name),
@@ -261,7 +295,8 @@ func (fs Fs) Stat(name string) (os.FileInfo, error) {
 	return NewFileInfo(path.Base(name), false, *out.ContentLength, *out.LastModified), nil
 }
 
-func (fs Fs) statDirectory(name string) (os.FileInfo, error) {
+func (fs Fs) statDirectory(in_name string) (os.FileInfo, error) {
+	name := fs.GetPath(in_name)
 	nameClean := path.Clean(name)
 	out, err := fs.s3API.ListObjectsV2(&s3.ListObjectsV2Input{
 		Bucket:  aws.String(fs.bucket),
@@ -286,7 +321,8 @@ func (fs Fs) statDirectory(name string) (os.FileInfo, error) {
 }
 
 // Chmod doesn't exists in S3 but could be implemented by analyzing ACLs
-func (fs Fs) Chmod(name string, mode os.FileMode) error {
+func (fs Fs) Chmod(in_name string, mode os.FileMode) error {
+	name := fs.GetPath(in_name)
 	var acl string
 
 	otherRead := mode&(1<<2) != 0
