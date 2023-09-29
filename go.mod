@@ -1,4 +1,4 @@
-module github.com/fclairamb/afero-s3
+module github.com/clicknclear/afero-s3
 
 go 1.19
 
