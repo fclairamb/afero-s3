@@ -281,7 +281,8 @@ func (fs Fs) Stat(in_name string) (os.FileInfo, error) {
 			Path: name,
 			Err:  err,
 		}
-	} else if strings.HasSuffix(name, "/") {
+	}
+	if strings.HasSuffix(name, "/") {
 		// user asked for a directory, but this is a file
 		return FileInfo{name: name}, nil
 		/*
@@ -303,6 +304,7 @@ func (fs Fs) statDirectory(in_name string) (os.FileInfo, error) {
 		Prefix:  aws.String(strings.TrimPrefix(nameClean, "/")),
 		MaxKeys: aws.Int64(1),
 	})
+
 	if err != nil {
 		return FileInfo{}, &os.PathError{
 			Op:   "stat",
@@ -310,7 +312,8 @@ func (fs Fs) statDirectory(in_name string) (os.FileInfo, error) {
 			Err:  err,
 		}
 	}
-	if *out.KeyCount == 0 && name != "" {
+
+	if *out.KeyCount == 0 && name != "" && name != fs.prefix {
 		return nil, &os.PathError{
 			Op:   "stat",
 			Path: name,
