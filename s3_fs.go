@@ -211,7 +211,7 @@ func (fs Fs) Rename(oldname, newname string) error {
 	}
 	_, err := fs.s3API.CopyObject(&s3.CopyObjectInput{
 		Bucket:     aws.String(fs.bucket),
-		CopySource: aws.String(fs.bucket + oldname),
+		CopySource: aws.String(fs.bucket + "/" +  oldname),
 		Key:        aws.String(newname),
 	})
 	if err != nil {
