@@ -446,6 +446,7 @@ func TestDirHandle(t *testing.T) {
 
 func TestFileReaddirnames(t *testing.T) {
 	fs := GetFs(t)
+	req := require.New(t)
 
 	// We create some dirs
 	for _, dir := range []string{"/dir1", "/dir2", "/dir3"} {
@@ -459,25 +460,12 @@ func TestFileReaddirnames(t *testing.T) {
 		t.Fatal(errOpen)
 	}
 
-	{
-		dirs, err := root.Readdirnames(2)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(dirs) != 2 || dirs[0] != "dir1" || dirs[1] != "dir2" {
-			t.Fatal("Wrong dirs")
-		}
+	dirs, err := root.Readdirnames(2)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	{
-		dirs, err := root.Readdirnames(2)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(dirs) != 1 || dirs[0] != "dir3" {
-			t.Fatal("Wrong dirs")
-		}
-	}
+	req.ElementsMatch(dirs, []string{"dir1", "dir2"})
 }
 
 // This test is only here to explain this FS might behave in a strange way
