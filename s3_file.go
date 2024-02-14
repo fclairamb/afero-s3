@@ -80,8 +80,10 @@ func (f *File) Readdir(n int) ([]os.FileInfo, error) {
 		Bucket:            aws.String(f.fs.bucket),
 		Prefix:            aws.String(name),
 		Delimiter:         aws.String("/"),
-		MaxKeys:           aws.Int64(int64(n)),
+		//+1 incase there is a folder file placed in the directory
+		MaxKeys: aws.Int64(int64(n) + 1),
 	})
+
 	if err != nil {
 		return nil, err
 	}
@@ -91,12 +93,23 @@ func (f *File) Readdir(n int) ([]os.FileInfo, error) {
 	}
 	var fis = make([]os.FileInfo, 0, len(output.CommonPrefixes)+len(output.Contents))
 	for _, subfolder := range output.CommonPrefixes {
+		//We need to get +1 files incase of folder file placed, but if we don't get the folder file we must respect the provided length
+		if len(fis) == n {
+			break
+		}
+
 		fis = append(fis, NewFileInfo(path.Base("/"+*subfolder.Prefix), true, 0, time.Unix(0, 0)))
 	}
+
 	for _, fileObject := range output.Contents {
 		if strings.HasSuffix(*fileObject.Key, "/") {
 			// S3 includes <name>/ in the Contents listing for <name>
 			continue
+		}
+
+		//We need to get +1 files incase of folder file placed, but if we don't get the folder file we must respect the provided length
+		if len(fis) == n {
+			break
 		}
 
 		fis = append(fis, NewFileInfo(path.Base("/"+*fileObject.Key), false, *fileObject.Size, *fileObject.LastModified))
