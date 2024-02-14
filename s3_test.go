@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"math/rand"
 	"os"
 	"strings"
@@ -560,33 +561,72 @@ func testCreateFile(t *testing.T, fs afero.Fs, name string, content string) {
 	}
 }
 
-func TestRename(t *testing.T) {
-	fs := GetFs(t)
-
-	if errMkdirAll := fs.MkdirAll("/dir1/dir2", 0750); errMkdirAll != nil {
-	} else if file, errOpenFile := fs.OpenFile("/dir1/dir2/file1", os.O_WRONLY, 0750); errOpenFile != nil {
-		t.Fatal("Couldn't open file:", errOpenFile)
-	} else {
-		if _, errWriteString := file.WriteString("Hello world !"); errWriteString != nil {
-			t.Fatal("Couldn't write:", errWriteString)
-		} else if errClose := file.Close(); errClose != nil {
-			t.Fatal("Couldn't close:", errClose)
-		}
+func openAndWriteFile(fs afero.Fs, t *testing.T, name string) {
+	file, err := fs.OpenFile(name, os.O_WRONLY, 0750)
+	if err != nil {
+		t.Fatal("Couldn't open file:", err)
 	}
 
-	if errRename := fs.Rename("/dir1/dir2/file1", "/dir1/dir2/file2"); errRename != nil {
+	if _, errWriteString := file.WriteString("Hello world !"); errWriteString != nil {
+		t.Fatal("Couldn't write:", errWriteString)
+	}
+
+	if errClose := file.Close(); errClose != nil {
+		t.Fatal("Couldn't close:", errClose)
+	}
+
+}
+
+func testFileExists(fs afero.Fs, t *testing.T, file_name string) fs.FileInfo {
+	stat, err := fs.Stat(file_name)
+	if err != nil {
+		t.Fatal("File should exist", file_name)
+	}
+	return stat
+}
+
+func testFileNotExists(fs afero.Fs, t *testing.T, file_name string) {
+	if _, err := fs.Stat(file_name); err == nil {
+		t.Fatal("File should not exist", file_name)
+	}
+}
+
+const ROOT = "/root/sub-dir/"
+
+func TestRenameFile(t *testing.T) {
+	const OLD_FILE = ROOT + "readme.md"
+	const NEW_FILE = ROOT + "README.md"
+	fs := GetFs(t)
+
+	openAndWriteFile(fs, t, OLD_FILE)
+
+	if errRename := fs.Rename(OLD_FILE, NEW_FILE); errRename != nil {
 		t.Fatal("Couldn't rename file err:", errRename)
 	}
 
-	if _, err := fs.Stat("/dir1/dir2/file1"); err == nil {
-		t.Fatal("File shouldn't exist anymore")
+	testFileNotExists(fs, t, OLD_FILE)
+	testFileExists(fs, t, NEW_FILE)
+}
+
+func TestRenameFolder(t *testing.T) {
+	fs := GetFs(t)
+	if err := fs.MkdirAll("/root/sub-dir", 0750); err != nil {
+		t.Fatal(err)
 	}
 
-	if _, err := fs.Stat("/dir1/dir2/file2"); err != nil {
-		t.Fatal("Couldn't fetch file cachedInfo:", err)
+	files := []string{ROOT + "foo.yml", ROOT + "bar.txt", ROOT + "ham/spam"}
+	for _, file := range files {
+		openAndWriteFile(fs, t, file)
 	}
 
-	// Renaming of a directory isn't tested because it's not supported by afero in the first place
+	if err := fs.Rename("/root", "/new-root"); err != nil {
+		t.Fatal("Failed to rename folder:", err)
+	}
+
+	for _, file := range files {
+		testFileExists(fs, t, strings.Replace(file, "/root", "/new-root", 1))
+		testFileNotExists(fs, t, file)
+	}
 }
 
 func TestFileTime(t *testing.T) {

@@ -241,18 +241,43 @@ func (fs Fs) Rename(in_oldname, in_newname string) error {
 	if oldname == newname {
 		return nil
 	}
+
+	if file, s_err := fs.Stat(oldname); file.IsDir() || s_err != nil {
+		children, err := NewFile(&fs, oldname).ReaddirAll()
+		if err != nil {
+			return err
+		}
+
+		for _, child := range children {
+			err := fs.Rename(path.Join(in_oldname, child.Name()), path.Join(in_newname, child.Name()))
+			if err != nil {
+				return err
+			}
+		}
+
+		//If the stat failed but there are children, this means its a directory without a directory file
+		if len(children) > 0 && s_err == nil {
+			return nil
+		}
+	}
+
 	_, err := fs.s3API.CopyObject(&s3.CopyObjectInput{
 		Bucket:     aws.String(fs.bucket),
 		CopySource: aws.String(fs.bucket + oldname),
 		Key:        aws.String(newname),
 	})
+
 	if err != nil {
+		fmt.Println("Copy Error", in_oldname, err)
 		return err
 	}
 	_, err = fs.s3API.DeleteObject(&s3.DeleteObjectInput{
 		Bucket: aws.String(fs.bucket),
 		Key:    aws.String(oldname),
 	})
+	if err != nil {
+		fmt.Println("Delete Error", err)
+	}
 	return err
 }
 
