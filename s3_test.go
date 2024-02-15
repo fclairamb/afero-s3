@@ -697,7 +697,7 @@ func TestContentType(t *testing.T) {
 		}
 
 		// We write each file
-		for fileName, _ := range fileToMime {
+		for fileName := range fileToMime {
 			testCreateFile(t, fs, fileName, "content")
 		}
 
