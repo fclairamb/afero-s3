@@ -2,6 +2,7 @@
 package s3
 
 import (
+	"io/fs"
 	"os"
 	"time"
 )
@@ -40,7 +41,7 @@ func (fi FileInfo) Size() int64 {
 // available on the bucket.
 func (fi FileInfo) Mode() os.FileMode {
 	if fi.directory {
-		return 0755
+		return fs.ModeDir + 0755
 	}
 	return 0664
 }
