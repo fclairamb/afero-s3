@@ -52,7 +52,7 @@ func (fi FileInfo) ModTime() time.Time {
 
 // IsDir provides the abbreviation for Mode().IsDir()
 func (fi FileInfo) IsDir() bool {
-	return fi.directory
+	return fi.directory || fi.name == "/"
 }
 
 // Sys provides the underlying data source (can return nil)
