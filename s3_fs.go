@@ -160,14 +160,20 @@ func (fs *Fs) OpenFile(name string, flag int, _ os.FileMode) (afero.File, error)
 
 // Remove a file
 func (fs Fs) Remove(name string) error {
-	if _, err := fs.Stat(name); err != nil {
+	fi, err := fs.Stat(name)
+	if err != nil {
 		return err
 	}
-	return fs.forceRemove(name)
+	return fs.forceRemove(name, fi.IsDir())
 }
 
 // forceRemove doesn't error if a file does not exist.
-func (fs Fs) forceRemove(name string) error {
+func (fs Fs) forceRemove(name string, isDir bool) error {
+	if isDir {
+		if !strings.HasSuffix(name, "/") {
+			name = name + "/"
+		}
+	}
 	_, err := fs.s3API.DeleteObject(&s3.DeleteObjectInput{
 		Bucket: aws.String(fs.bucket),
 		Key:    aws.String(name),
@@ -189,13 +195,13 @@ func (fs *Fs) RemoveAll(name string) error {
 				return err
 			}
 		} else {
-			if err := fs.forceRemove(fullpath); err != nil {
+			if err := fs.forceRemove(fullpath, false); err != nil {
 				return err
 			}
 		}
 	}
 	// finally remove the "file" representing the directory
-	if err := fs.forceRemove(s3dir.Name() + "/"); err != nil {
+	if err := fs.forceRemove(s3dir.Name(), true); err != nil {
 		return err
 	}
 	return nil
@@ -209,6 +215,23 @@ func (fs Fs) Rename(oldname, newname string) error {
 	if oldname == newname {
 		return nil
 	}
+	fi, err := fs.Stat(oldname)
+	if err != nil {
+		return err
+	}
+	return fs.rename(oldname, newname, fi.IsDir())
+}
+func (fs Fs) rename(oldname, newname string, isDir bool) error {
+
+	if isDir {
+		if !strings.HasSuffix(oldname, "/") {
+			oldname = oldname + "/"
+		}
+		if !strings.HasSuffix(newname, "/") {
+			newname = newname + "/"
+		}
+	}
+
 	_, err := fs.s3API.CopyObject(&s3.CopyObjectInput{
 		Bucket:     aws.String(fs.bucket),
 		CopySource: aws.String(fs.bucket + oldname),
@@ -217,6 +240,32 @@ func (fs Fs) Rename(oldname, newname string) error {
 	if err != nil {
 		return err
 	}
+
+	// Wait to see if the item got copied
+	err = fs.s3API.WaitUntilObjectExists(&s3.HeadObjectInput{
+		Bucket: aws.String(fs.bucket),
+		Key:    aws.String(newname),
+	})
+	if err != nil {
+		return err
+	}
+
+	if isDir {
+		s3dir := NewFile(&fs, oldname)
+		fis, err := s3dir.Readdir(0)
+		if err != nil {
+			return err
+		}
+		for _, fi := range fis {
+			src := oldname + fi.Name()
+			dst := newname + fi.Name()
+			err = fs.rename(src, dst, fi.IsDir())
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	_, err = fs.s3API.DeleteObject(&s3.DeleteObjectInput{
 		Bucket: aws.String(fs.bucket),
 		Key:    aws.String(oldname),
