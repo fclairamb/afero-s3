@@ -7,7 +7,7 @@ toolchain go1.25.0
 require (
 	github.com/aws/aws-sdk-go v1.55.8
 	github.com/spf13/afero v1.14.0
-	github.com/stretchr/testify v1.11.0
+	github.com/stretchr/testify v1.11.1
 )
 
 require (
