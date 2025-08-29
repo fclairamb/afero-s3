@@ -75,12 +75,19 @@ func (f *File) Readdir(n int) ([]os.FileInfo, error) {
 	if name != "" && !strings.HasSuffix(name, "/") {
 		name += "/"
 	}
+
+	// Use a slightly higher MaxKeys when n=1 to account for directory markers that get filtered out
+	maxKeys := int64(n)
+	if n == 1 {
+		maxKeys = 3 // Request a few extra items to handle directory markers
+	}
+
 	output, err := f.fs.s3API.ListObjectsV2(&s3.ListObjectsV2Input{
 		ContinuationToken: f.readdirContinuationToken,
 		Bucket:            aws.String(f.fs.bucket),
 		Prefix:            aws.String(name),
 		Delimiter:         aws.String("/"),
-		MaxKeys:           aws.Int64(int64(n)),
+		MaxKeys:           aws.Int64(maxKeys),
 	})
 	if err != nil {
 		return nil, err
@@ -100,6 +107,11 @@ func (f *File) Readdir(n int) ([]os.FileInfo, error) {
 		}
 
 		fis = append(fis, NewFileInfo(path.Base("/"+*fileObject.Key), false, *fileObject.Size, *fileObject.LastModified))
+	}
+
+	// Limit results to requested number
+	if n > 0 && len(fis) > n {
+		fis = fis[:n]
 	}
 
 	return fis, nil
