@@ -11,7 +11,7 @@ jobs:
   # This workflow contains a single job called "build"
   build:
     # The type of runner that the job will run on
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     services:
       minio:
         image: fclairamb/minio-github-actions:v0.2
@@ -22,26 +22,26 @@ jobs:
 
     strategy:
       matrix:
-        go: [ 1.18, 1.17, 1.16 ]
+        go: [ 1.25, 1.24 ]
         include:
-          - go: 1.18
+          - go: 1.25
             lint: true
   
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
 
       # Running golangci-lint
       - name: Run golangci-lint
         if: matrix.lint
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v8
         with:
-          version: v1.45
+          version: v2.4.0
 
       # Install Go
       - name: Setup go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go }}
 

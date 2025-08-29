@@ -58,10 +58,10 @@ var ErrAlreadyOpened = errors.New("already opened")
 var ErrInvalidSeek = errors.New("invalid seek offset")
 
 // Name returns the type of FS object this is: Fs.
-func (Fs) Name() string { return "s3" }
+func (*Fs) Name() string { return "s3" }
 
 // Create a file.
-func (fs Fs) Create(name string) (afero.File, error) {
+func (fs *Fs) Create(name string) (afero.File, error) {
 	{ // It's faster to trigger an explicit empty put object than opening a file for write, closing it and re-opening it
 		req := &s3.PutObjectInput{
 			Bucket: aws.String(fs.bucket),
@@ -99,7 +99,7 @@ func (fs Fs) Create(name string) (afero.File, error) {
 }
 
 // Mkdir makes a directory in S3.
-func (fs Fs) Mkdir(name string, perm os.FileMode) error {
+func (fs *Fs) Mkdir(name string, perm os.FileMode) error {
 	file, err := fs.OpenFile(fmt.Sprintf("%s/", path.Clean(name)), os.O_CREATE, perm)
 	if err == nil {
 		err = file.Close()
@@ -108,7 +108,7 @@ func (fs Fs) Mkdir(name string, perm os.FileMode) error {
 }
 
 // MkdirAll creates a directory and all parent directories if necessary.
-func (fs Fs) MkdirAll(path string, perm os.FileMode) error {
+func (fs *Fs) MkdirAll(path string, perm os.FileMode) error {
 	return fs.Mkdir(path, perm)
 }
 
@@ -159,7 +159,7 @@ func (fs *Fs) OpenFile(name string, flag int, _ os.FileMode) (afero.File, error)
 }
 
 // Remove a file
-func (fs Fs) Remove(name string) error {
+func (fs *Fs) Remove(name string) error {
 	if _, err := fs.Stat(name); err != nil {
 		return err
 	}
@@ -167,7 +167,7 @@ func (fs Fs) Remove(name string) error {
 }
 
 // forceRemove doesn't error if a file does not exist.
-func (fs Fs) forceRemove(name string) error {
+func (fs *Fs) forceRemove(name string) error {
 	_, err := fs.s3API.DeleteObject(&s3.DeleteObjectInput{
 		Bucket: aws.String(fs.bucket),
 		Key:    aws.String(name),
@@ -205,7 +205,7 @@ func (fs *Fs) RemoveAll(name string) error {
 // There is no method to directly rename an S3 object, so the Rename
 // will copy the file to an object with the new name and then delete
 // the original.
-func (fs Fs) Rename(oldname, newname string) error {
+func (fs *Fs) Rename(oldname, newname string) error {
 	if oldname == newname {
 		return nil
 	}
@@ -226,7 +226,7 @@ func (fs Fs) Rename(oldname, newname string) error {
 
 // Stat returns a FileInfo describing the named file.
 // If there is an error, it will be of type *os.PathError.
-func (fs Fs) Stat(name string) (os.FileInfo, error) {
+func (fs *Fs) Stat(name string) (os.FileInfo, error) {
 	out, err := fs.s3API.HeadObject(&s3.HeadObjectInput{
 		Bucket: aws.String(fs.bucket),
 		Key:    aws.String(name),
@@ -258,7 +258,7 @@ func (fs Fs) Stat(name string) (os.FileInfo, error) {
 	return NewFileInfo(path.Base(name), false, *out.ContentLength, *out.LastModified), nil
 }
 
-func (fs Fs) statDirectory(name string) (os.FileInfo, error) {
+func (fs *Fs) statDirectory(name string) (os.FileInfo, error) {
 	nameClean := path.Clean(name)
 	out, err := fs.s3API.ListObjectsV2(&s3.ListObjectsV2Input{
 		Bucket:  aws.String(fs.bucket),
@@ -283,7 +283,7 @@ func (fs Fs) statDirectory(name string) (os.FileInfo, error) {
 }
 
 // Chmod doesn't exists in S3 but could be implemented by analyzing ACLs
-func (fs Fs) Chmod(name string, mode os.FileMode) error {
+func (fs *Fs) Chmod(name string, mode os.FileMode) error {
 	var acl string
 
 	otherRead := mode&(1<<2) != 0
@@ -307,13 +307,13 @@ func (fs Fs) Chmod(name string, mode os.FileMode) error {
 }
 
 // Chown doesn't exist in S3 should probably NOT have been added to afero as it's POSIX-only concept.
-func (Fs) Chown(string, int, int) error {
+func (*Fs) Chown(string, int, int) error {
 	return ErrNotSupported
 }
 
 // Chtimes could be implemented if needed, but that would require to override object properties using metadata,
 // which makes it a non-standard solution
-func (Fs) Chtimes(string, time.Time, time.Time) error {
+func (*Fs) Chtimes(string, time.Time, time.Time) error {
 	return ErrNotSupported
 }
 

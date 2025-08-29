@@ -695,23 +695,29 @@ func TestContentType(t *testing.T) {
 		req.Equal("image/png", *resp.ContentType)
 	})
 
-	t.Run("Custom", func(t *testing.T) {
-		fs.FileProps = &UploadedFileProperties{ContentType: aws.String("my-type")}
-		defer func() { fs.FileProps = nil }()
-		_, err := fs.Create("custom-create")
+}
+
+func TestContentTypeCustom(t *testing.T) {
+	fs := __getS3Fs(t)
+	req := require.New(t)
+	
+	// Set custom content type
+	fs.FileProps = &UploadedFileProperties{ContentType: aws.String("my-type")}
+	defer func() { fs.FileProps = nil }()
+	
+	// Create files with custom content type
+	testCreateFile(t, fs, "custom-create", "content")
+	testCreateFile(t, fs, "custom-write", "content")
+
+	// Verify the files were uploaded with correct content type
+	for _, name := range []string{"custom-create", "custom-write"} {
+		resp, err := fs.s3API.GetObject(&s3.GetObjectInput{
+			Bucket: aws.String(fs.bucket),
+			Key:    aws.String(name),
+		})
 		req.NoError(err)
-
-		testCreateFile(t, fs, "custom-write", "content")
-
-		for _, name := range []string{"custom-create", "custom-write"} {
-			resp, err := fs.s3API.GetObject(&s3.GetObjectInput{
-				Bucket: aws.String(fs.bucket),
-				Key:    aws.String(name),
-			})
-			req.NoError(err)
-			req.Equal("my-type", *resp.ContentType)
-		}
-	})
+		req.Equal("my-type", *resp.ContentType)
+	}
 }
 
 func TestFileProps(t *testing.T) {
@@ -750,8 +756,12 @@ func TestFileReaddir(t *testing.T) {
 	err := fs.Mkdir("/dir1", 0750)
 	req.NoError(err, "Could not create dir1")
 
-	_, err = fs.Create("/dir1/readme.txt")
+	file, err := fs.Create("/dir1/readme.txt")
 	req.NoError(err, "could not create file")
+	_, err = file.WriteString("content")
+	req.NoError(err, "could not write to file")
+	err = file.Close()
+	req.NoError(err, "could not close file")
 
 	t.Run("WithNoTrailingSlash", func(t *testing.T) {
 		dir, err := fs.Open("/dir1")
@@ -762,7 +772,7 @@ func TestFileReaddir(t *testing.T) {
 		req.Len(fis,1)
 	})
 
-	t.Run("WithNoTrailingSlash", func(t *testing.T) {
+	t.Run("WithTrailingSlash", func(t *testing.T) {
 		dir, err := fs.Open("/dir1/")
 		req.NoError(err, "could not open /dir1/")
 
