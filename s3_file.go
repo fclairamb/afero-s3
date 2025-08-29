@@ -114,9 +114,8 @@ func (f *File) ReaddirAll() ([]os.FileInfo, error) {
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				break
-			} else {
-				return nil, err
 			}
+			return nil, err
 		}
 	}
 	return fileInfos, nil
