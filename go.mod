@@ -2,7 +2,7 @@ module github.com/fclairamb/afero-s3
 
 go 1.23.0
 
-toolchain go1.25.4
+toolchain go1.25.5
 
 require (
 	github.com/aws/aws-sdk-go v1.55.8
