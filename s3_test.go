@@ -485,7 +485,7 @@ func TestBadConnection(t *testing.T) {
 	fs := __getS3Fs(t)
 
 	// Let's mess-up the config
-	fs.session.Config.Endpoint = aws.String("http://broken")
+	fs.Session.Config.Endpoint = aws.String("http://broken")
 
 	t.Run("Read", func(t *testing.T) {
 		// We will fail here because we are checking if the file exists and its type
@@ -674,8 +674,8 @@ func TestContentType(t *testing.T) {
 
 		// And we check the resulting content-type
 		for fileName, mimeType := range fileToMime {
-			resp, err := fs.s3API.GetObject(&s3.GetObjectInput{
-				Bucket: aws.String(fs.bucket),
+			resp, err := fs.S3API.GetObject(&s3.GetObjectInput{
+				Bucket: aws.String(fs.Bucket),
 				Key:    aws.String(fileName),
 			})
 			req.NoError(err)
@@ -687,8 +687,8 @@ func TestContentType(t *testing.T) {
 		_, err := fs.Create("create.png")
 		req.NoError(err)
 
-		resp, err := fs.s3API.GetObject(&s3.GetObjectInput{
-			Bucket: aws.String(fs.bucket),
+		resp, err := fs.S3API.GetObject(&s3.GetObjectInput{
+			Bucket: aws.String(fs.Bucket),
 			Key:    aws.String("create.png"),
 		})
 		req.NoError(err)
@@ -704,8 +704,8 @@ func TestContentType(t *testing.T) {
 		testCreateFile(t, fs, "custom-write", "content")
 
 		for _, name := range []string{"custom-create", "custom-write"} {
-			resp, err := fs.s3API.GetObject(&s3.GetObjectInput{
-				Bucket: aws.String(fs.bucket),
+			resp, err := fs.S3API.GetObject(&s3.GetObjectInput{
+				Bucket: aws.String(fs.Bucket),
 				Key:    aws.String(name),
 			})
 			req.NoError(err)
@@ -732,8 +732,8 @@ func TestFileProps(t *testing.T) {
 		testCreateFile(t, fs, "write", "content")
 
 		for _, name := range []string{"create", "write"} {
-			resp, err := fs.s3API.GetObject(&s3.GetObjectInput{
-				Bucket: aws.String(fs.bucket),
+			resp, err := fs.S3API.GetObject(&s3.GetObjectInput{
+				Bucket: aws.String(fs.Bucket),
 				Key:    aws.String(name),
 			})
 			req.NoError(err)
