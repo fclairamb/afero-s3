@@ -718,8 +718,9 @@ func TestContentType(t *testing.T) {
 	})
 
 	t.Run("Create", func(t *testing.T) {
-		_, err := fs.Create("create.png")
+		file, err := fs.Create("create.png")
 		req.NoError(err)
+		req.NoError(file.Close())
 
 		resp, err := fs.client.GetObject(context.Background(), &s3.GetObjectInput{
 			Bucket: aws.String(fs.bucket),
@@ -731,11 +732,14 @@ func TestContentType(t *testing.T) {
 
 	t.Run("Custom", func(t *testing.T) {
 		fs.FileProps = &UploadedFileProperties{ContentType: aws.String("my-type")}
-		defer func() { fs.FileProps = nil }()
-		_, err := fs.Create("custom-create")
+		file, err := fs.Create("custom-create")
 		req.NoError(err)
+		req.NoError(file.Close())
 
 		testCreateFile(t, fs, "custom-write", "content")
+
+		// Reset FileProps after all files are closed to avoid race condition
+		fs.FileProps = nil
 
 		for _, name := range []string{"custom-create", "custom-write"} {
 			resp, err := fs.client.GetObject(context.Background(), &s3.GetObjectInput{
@@ -762,11 +766,15 @@ func TestFileProps(t *testing.T) {
 		}
 
 		// We create a file
-		_, err := fs.Create("create")
+		file, err := fs.Create("create")
 		req.NoError(err)
+		req.NoError(file.Close())
 
 		// We write an other one
 		testCreateFile(t, fs, "write", "content")
+
+		// Reset FileProps after all files are closed
+		fs.FileProps = nil
 
 		for _, name := range []string{"create", "write"} {
 			resp, err := fs.client.GetObject(context.Background(), &s3.GetObjectInput{
@@ -787,8 +795,9 @@ func TestFileReaddir(t *testing.T) {
 	err := fs.Mkdir("dir1", 0750)
 	req.NoError(err, "Could not create dir1")
 
-	_, err = fs.Create("dir1/readme.txt")
+	file, err := fs.Create("dir1/readme.txt")
 	req.NoError(err, "could not create file")
+	req.NoError(file.Close())
 
 	t.Run("WithNoTrailingSlash", func(t *testing.T) {
 		dir, err := fs.Open("dir1")
