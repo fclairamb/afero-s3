@@ -275,7 +275,7 @@ func (fs Fs) statDirectory(name string) (os.FileInfo, error) {
 			Err:  err,
 		}
 	}
-	if *out.KeyCount == 0 && name != "" {
+	if (out.KeyCount == nil || *out.KeyCount == 0) && name != "" {
 		return nil, &os.PathError{
 			Op:   "stat",
 			Path: name,
