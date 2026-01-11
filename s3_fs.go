@@ -389,7 +389,7 @@ func sanitize(name string) string {
 	name = strings.ReplaceAll(name, "\\", "/")
 	hasTrailingSlash := strings.HasSuffix(name, "/")
 	name = path.Clean(name)
-	if hasTrailingSlash {
+	if hasTrailingSlash && name != "/" {
 		name += "/"
 	}
 	return name
