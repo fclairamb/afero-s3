@@ -240,6 +240,9 @@ func (fs *Fs) Rename(oldname, newname string) error {
 // Stat returns a FileInfo describing the named file.
 // If there is an error, it will be of type *os.PathError.
 func (fs *Fs) Stat(name string) (os.FileInfo, error) {
+	if name == "/" {
+		return NewFileInfo(name, true, 0, time.Unix(0, 0)), nil
+	}
 	out, err := fs.client.HeadObject(context.Background(), &s3.HeadObjectInput{
 		Bucket: aws.String(fs.bucket),
 		Key:    aws.String(name),
