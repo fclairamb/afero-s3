@@ -1,63 +1,49 @@
 name: Build
 
-# Controls when the action will run. Triggers the workflow on push or pull request
-# events but only for the master branch
 on:
   push:
   pull_request:
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
   build:
-    # The type of runner that the job will run on
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     services:
       minio:
         image: fclairamb/minio-github-actions:v0.2
-        # env:
-        #  MINIO_COMMAND: server
         ports:
           - 9000:9000
 
     strategy:
       matrix:
-        go: [ 1.17, 1.16, 1.15 ]
+        go: ['1.23', '1.24']
         include:
-          - go: 1.17
+          - go: '1.24'
             lint: true
-  
-    # Steps represent a sequence of tasks that will be executed as part of the job
+
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v6
 
-      # Running golangci-lint
-      - name: Run golangci-lint
-        if: matrix.lint
-        uses: golangci/golangci-lint-action@v2
-        with:
-          version: v1.43
-
-      # Install Go
       - name: Setup go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.go }}
 
+      - name: Run golangci-lint
+        if: matrix.lint
+        uses: golangci/golangci-lint-action@v9
+
       - name: Build
-        run: go get -v && go build -v ./...
+        run: go build -v ./...
 
       - name: Test
-        # We need GCC because of the "go test -race"
-        # env:
-        #   CGO_ENABLED: 0
-        run: |
-          apt-get update && apt-get install gcc -y
-          go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
-          bash <(curl -s https://codecov.io/bash)
+        run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
 
-  # For github to have a unique status check name
+      - name: Upload coverage to Codecov
+        if: matrix.lint
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage.txt
+
   build-status:
     needs: build
     runs-on: ubuntu-latest

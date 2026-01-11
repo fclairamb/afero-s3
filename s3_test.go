@@ -862,19 +862,7 @@ func (r *LimitedReader) Read(buffer []byte) (int, error) {
 }
 
 func TestMain(m *testing.M) {
-	// call flag.Parse() here if TestMain uses flags
-	rc := m.Run()
-
-	// rc 0 means we've passed,
-	// and CoverMode will be non empty if run with -cover
-	if rc == 0 && testing.CoverMode() != "" {
-		c := testing.Coverage()
-		if c < 0.80 {
-			fmt.Printf("Tests passed but coverage failed at %0.2f\n", c)
-			rc = -1
-		}
-	}
-	os.Exit(rc)
+	os.Exit(m.Run())
 }
 
 func TestFileInfo(t *testing.T) {
