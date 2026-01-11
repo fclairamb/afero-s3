@@ -74,3 +74,54 @@ The project uses strict golangci-lint configuration:
 - Cyclomatic complexity: Max 15
 - Cognitive complexity: Max 30
 - Line length: Max 120 characters
+
+## Conventional Commits
+
+This project uses [Conventional Commits](https://www.conventionalcommits.org/) for commit messages and PR titles. This enables automatic changelog generation and semantic versioning via release-please.
+
+### Format
+
+```
+<type>[optional scope]: <description>
+```
+
+### Types
+
+- `feat`: New feature (triggers minor version bump)
+- `fix`: Bug fix (triggers patch version bump)
+- `docs`: Documentation only
+- `style`: Code style changes (formatting, etc.)
+- `refactor`: Code refactoring
+- `perf`: Performance improvements
+- `test`: Adding or updating tests
+- `build`: Build system changes
+- `ci`: CI configuration changes
+- `chore`: Other changes (dependencies, etc.)
+
+### Scopes (optional)
+
+- `fs`: Filesystem implementation
+- `file`: File operations
+- `fileinfo`: File metadata
+- `deps`: Dependencies
+- `docs`: Documentation
+- `tests`: Test suite
+- `ci`: CI/CD configuration
+
+### Examples
+
+```
+feat: add support for custom S3 endpoints
+fix(fs): handle empty directory listings correctly
+docs: update installation instructions
+chore(deps): bump aws-sdk-go to v1.50.0
+```
+
+### Breaking Changes
+
+Add `!` after type/scope or include `BREAKING CHANGE:` in the footer to trigger a major version bump:
+
+```
+feat!: redesign file streaming API
+feat(fs)!: change default ACL behavior
+```
