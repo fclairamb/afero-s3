@@ -2,6 +2,7 @@
 package s3
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -14,9 +15,9 @@ import (
 
 	"github.com/spf13/afero"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
 // File represents a file in S3.
@@ -33,6 +34,8 @@ type File struct {
 	readdirContinuationToken *string        // readdirContinuationToken is used to perform files listing across calls
 	readdirNotTruncated      bool           // readdirNotTruncated is set when we shall continue reading
 	// I think readdirNotTruncated can be dropped. The continuation token is probably enough.
+
+	closed bool // closed is set when the file is closed
 }
 
 // NewFile initializes an File object.
@@ -75,25 +78,27 @@ func (f *File) Readdir(n int) ([]os.FileInfo, error) {
 	if name != "" && !strings.HasSuffix(name, "/") {
 		name += "/"
 	}
-	output, err := f.fs.S3API.ListObjectsV2(&s3.ListObjectsV2Input{
+	output, err := f.fs.client.ListObjectsV2(context.Background(), &s3.ListObjectsV2Input{
 		ContinuationToken: f.readdirContinuationToken,
-		Bucket:            aws.String(f.fs.Bucket),
-		Prefix:            aws.String(name),
+		Bucket:            aws.String(f.fs.bucket),
+		Prefix:            &name,
 		Delimiter:         aws.String("/"),
-		MaxKeys:           aws.Int64(int64(n)),
+		MaxKeys:           aws.Int32(int32(n)),
 	})
 	if err != nil {
 		return nil, err
 	}
 	f.readdirContinuationToken = output.NextContinuationToken
-	if !(*output.IsTruncated) {
+	if output.IsTruncated == nil || !*output.IsTruncated {
 		f.readdirNotTruncated = true
 	}
+
 	var fis = make([]os.FileInfo, 0, len(output.CommonPrefixes)+len(output.Contents))
 	for _, subfolder := range output.CommonPrefixes {
 		fis = append(fis, NewFileInfo(path.Base("/"+*subfolder.Prefix), true, 0, time.Unix(0, 0)))
 	}
-	for _, fileObject := range output.Contents {
+	for k := range output.Contents {
+		fileObject := &output.Contents[k]
 		if strings.HasSuffix(*fileObject.Key, "/") {
 			// S3 includes <name>/ in the Contents listing for <name>
 			continue
@@ -114,9 +119,8 @@ func (f *File) ReaddirAll() ([]os.FileInfo, error) {
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				break
-			} else {
-				return nil, err
 			}
+			return nil, err
 		}
 	}
 	return fileInfos, nil
@@ -178,12 +182,13 @@ func (f *File) WriteString(s string) (int, error) {
 // It returns an error, if any.
 func (f *File) Close() error {
 	// Closing a reading stream
+	f.closed = true
 	if f.streamRead != nil {
 		// We try to close the Reader
 		defer func() {
 			f.streamRead = nil
 		}()
-		return f.streamRead.Close()
+		f.streamRead.Close()
 	}
 
 	// Closing a writing stream
@@ -213,16 +218,34 @@ func (f *File) Close() error {
 // It returns the number of bytes read and an error, if any.
 // EOF is signaled by a zero count with err set to io.EOF.
 func (f *File) Read(p []byte) (int, error) {
+	// if you want RDWR, then use a CopyOnWriteFs on top of this
+	var err error
+	// if there is not currently a stream, attempt to open a stream at the current offset
 	if f.streamRead == nil {
-		return 0, io.EOF
+		f.streamRead, err = f.RangeReader(f.streamReadOffset, int64(len(p)))
+		if err != nil {
+			return 0, err
+		}
 	}
-
+	// otherwise, read the stream
 	n, err := f.streamRead.Read(p)
-
-	if err == nil {
-		f.streamReadOffset += int64(n)
+	if err == io.EOF {
+		if f.streamRead != nil {
+			// close the stream if it has read to the end
+			f.streamRead.Close()
+			f.streamRead = nil
+		}
+		err = nil
+	}
+	// increase the offset with the missing bytes. return EOF if we are done reading the whole file
+	f.streamReadOffset += int64(n)
+	if f.streamReadOffset >= f.cachedInfo.Size() {
+		// return an EOF, as we have read to the end of the file
+		// this means that readall should function properly.
+		return n, io.EOF
 	}
 
+	// return bytes read and any error from the streamread
 	return n, err
 }
 
@@ -245,23 +268,20 @@ func (f *File) ReadAt(p []byte, off int64) (n int, err error) {
 // It returns the new offset and an error, if any.
 // The behavior of Seek on a file opened with O_APPEND is not specified.
 func (f *File) Seek(offset int64, whence int) (int64, error) {
+	if f.closed {
+		return 0, afero.ErrFileClosed
+	}
 	// Write seek is not supported
 	if f.streamWrite != nil {
 		return 0, ErrNotSupported
 	}
 
-	// Read seek has its own implementation
-	if f.streamRead != nil {
-		return f.seekRead(offset, whence)
-	}
-
-	// Not having a stream
-	return 0, afero.ErrFileClosed
+	// seekRead sets the offset of the next read, but does NOT open a stream.
+	return f.seekRead(offset, whence)
 }
 
 func (f *File) seekRead(offset int64, whence int) (int64, error) {
-	startByte := int64(0)
-
+	startByte := f.streamReadOffset
 	switch whence {
 	case io.SeekStart:
 		startByte = offset
@@ -271,16 +291,12 @@ func (f *File) seekRead(offset int64, whence int) (int64, error) {
 		startByte = f.cachedInfo.Size() - offset
 	}
 
-	if err := f.streamRead.Close(); err != nil {
-		return 0, fmt.Errorf("couldn't close previous stream: %w", err)
-	}
-	f.streamRead = nil
-
 	if startByte < 0 {
 		return startByte, ErrInvalidSeek
 	}
 
-	return startByte, f.openReadStream(startByte)
+	f.streamReadOffset = startByte
+	return startByte, nil
 }
 
 // Write writes len(b) bytes to the File.
@@ -308,12 +324,12 @@ func (f *File) openWriteStream() error {
 	f.streamWriteCloseErr = make(chan error)
 	f.streamWrite = writer
 
-	uploader := s3manager.NewUploader(f.fs.Session)
+	uploader := manager.NewUploader(f.fs.client)
 	uploader.Concurrency = 1
 
 	go func() {
-		input := &s3manager.UploadInput{
-			Bucket: aws.String(f.fs.Bucket),
+		input := &s3.PutObjectInput{
+			Bucket: aws.String(f.fs.bucket),
 			Key:    aws.String(f.name),
 			Body:   reader,
 		}
@@ -327,7 +343,7 @@ func (f *File) openWriteStream() error {
 			input.ContentType = aws.String(mime.TypeByExtension(filepath.Ext(f.name)))
 		}
 
-		_, err := uploader.Upload(input)
+		_, err := uploader.Upload(context.Background(), input)
 
 		if err != nil {
 			f.streamWriteErr = err
@@ -337,31 +353,6 @@ func (f *File) openWriteStream() error {
 		f.streamWriteCloseErr <- err
 		// close(f.streamWriteCloseErr)
 	}()
-	return nil
-}
-
-func (f *File) openReadStream(startAt int64) error {
-	if f.streamRead != nil {
-		return ErrAlreadyOpened
-	}
-
-	var streamRange *string
-
-	if startAt > 0 {
-		streamRange = aws.String(fmt.Sprintf("bytes=%d-%d", startAt, f.cachedInfo.Size()))
-	}
-
-	resp, err := f.fs.S3API.GetObject(&s3.GetObjectInput{
-		Bucket: aws.String(f.fs.Bucket),
-		Key:    aws.String(f.name),
-		Range:  streamRange,
-	})
-	if err != nil {
-		return err
-	}
-
-	f.streamReadOffset = startAt
-	f.streamRead = resp.Body
 	return nil
 }
 
@@ -375,4 +366,32 @@ func (f *File) WriteAt(p []byte, off int64) (n int, err error) {
 	}
 	n, err = f.Write(p)
 	return
+}
+
+// RangeReader produces an io.ReadCloser that reads
+// bytes in the range from [off, off+width)
+//
+// It is the caller's responsibility to call Close()
+// on the returned io.ReadCloser.
+func (f *File) RangeReader(from, amt int64) (io.ReadCloser, error) {
+	target := from + amt - 1 // must subtract 1!
+	if target >= f.cachedInfo.Size() {
+		target = f.cachedInfo.Size() - 1
+	}
+	if from >= f.cachedInfo.Size() {
+		return nil, io.EOF
+	}
+	rq := &s3.GetObjectInput{
+		Bucket: aws.String(f.fs.bucket),
+		Key:    aws.String(f.name),
+		Range:  aws.String(fmt.Sprintf("bytes=%d-%d", from, target)),
+	}
+	res, err := f.fs.client.GetObject(context.Background(), rq)
+	if err != nil {
+		if res != nil && res.Body != nil {
+			res.Body.Close()
+		}
+		return nil, err
+	}
+	return res.Body, nil
 }
