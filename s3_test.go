@@ -214,7 +214,101 @@ func TestFileSeekBig(t *testing.T) {
 	}
 }
 
-//nolint: gocyclo, funlen
+// nolint: gocyclo, funlen
+func TestFileRangeReader(t *testing.T) {
+	fs := GetFs(t)
+	req := require.New(t)
+
+	{ // Writing an initial file
+		file, err := fs.OpenFile("file2", os.O_WRONLY, 0777)
+		req.NoError(err)
+
+		_, err = file.WriteString("five boxing wizards jump quickly over the lazy brown dog")
+		req.NoError(err)
+
+		req.NoError(file.Close())
+	}
+
+	file, errOpen := fs.Open("file2")
+	req.NoError(errOpen)
+
+	buffer := make([]byte, 5)
+
+	{ // Reading  jump
+		if pos, err := file.Seek(20, io.SeekStart); err != nil || pos != 20 {
+			t.Fatal("Could not seek:", err)
+		}
+
+		if _, err := file.Read(buffer); err != nil {
+			t.Fatal("Could not read buffer:", err)
+		}
+
+		if string(buffer) != "jump " {
+			t.Fatal("Bad fetch:", string(buffer))
+		}
+	}
+
+	{ // Going back to read wizar
+		if pos, err := file.Seek(-13, io.SeekCurrent); err != nil || pos != 12 {
+			t.Fatal("Could not seek:", err)
+		}
+
+		if _, err := file.Read(buffer); err != nil {
+			t.Fatal("Could not read buffer:", err)
+		}
+
+		if string(buffer) != "wizar" {
+			t.Fatal("Bad fetch:", string(buffer))
+		}
+	}
+
+	{ // And then going back to the beginning
+		if pos, err := file.Seek(1, io.SeekStart); err != nil || pos != 1 {
+			t.Fatal("Could not seek:", err)
+		}
+
+		if _, err := file.Read(buffer); err != nil {
+			t.Fatal("Could not read buffer:", err)
+		}
+
+		if string(buffer) != "ive b" {
+			t.Fatal("Bad fetch:", string(buffer))
+		}
+	}
+
+	{ // And from the end
+		if pos, err := file.Seek(3, io.SeekEnd); err != nil || pos != 53 {
+			t.Fatal("Could not seek:", err)
+		}
+
+		if _, err := file.Read(buffer); err != io.EOF {
+			t.Fatal("Could not read buffer:", err)
+		}
+
+		req.Equal("dog b", string(buffer))
+	}
+
+	{ // And then back to the beginning to read the whole thing
+		if pos, err := file.Seek(0, io.SeekStart); err != nil || pos != 0 {
+			t.Fatal("Could not seek:", err)
+		}
+		content, err := io.ReadAll(file)
+		if err != nil {
+			t.Fatal("Could not read buffer:", err)
+		}
+		if string(content) != "five boxing wizards jump quickly over the lazy brown dog" {
+			t.Fatal("Bad fetch:", string(content))
+		}
+	}
+	// Let's close it
+	req.NoError(file.Close())
+
+	// And do an other seek
+	_, err := file.Seek(10, io.SeekStart)
+	req.EqualError(err, "File is closed")
+}
+
+// nolint: gocyclo, funlen
 func TestFileSeekBasic(t *testing.T) {
 	fs := GetFs(t)
 	req := require.New(t)
