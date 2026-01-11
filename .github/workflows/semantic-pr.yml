@@ -27,4 +27,5 @@ jobs:
             docs
             tests
             ci
+            release
           requireScope: false
