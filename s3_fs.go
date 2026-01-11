@@ -156,6 +156,8 @@ func (fs *Fs) OpenFile(name string, flag int, _ os.FileMode) (afero.File, error)
 		return file, file.openWriteStream()
 	}
 
+	// otherwise, assume it's read only
+
 	info, err := file.Stat()
 
 	if err != nil {
@@ -166,7 +168,7 @@ func (fs *Fs) OpenFile(name string, flag int, _ os.FileMode) (afero.File, error)
 		return file, nil
 	}
 
-	return file, file.openReadStream(0)
+	return file, nil
 }
 
 // Remove a file
