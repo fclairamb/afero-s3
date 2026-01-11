@@ -115,9 +115,8 @@ func (f *File) ReaddirAll() ([]os.FileInfo, error) {
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				break
-			} else {
-				return nil, err
 			}
+			return nil, err
 		}
 	}
 	return fileInfos, nil
@@ -239,7 +238,7 @@ func (f *File) Read(p []byte) (int, error) {
 	if f.streamReadOffset >= f.cachedInfo.Size() {
 		// return an EOF, as we have read to the end of the file
 		// this means that readall should function properly.
-		return int(n), io.EOF
+		return n, io.EOF
 	}
 
 	// return bytes read and any error from the streamread
@@ -370,20 +369,20 @@ func (f *File) WriteAt(p []byte, off int64) (n int, err error) {
 //
 // It is the caller's responsibility to call Close()
 // on the returned io.ReadCloser.
-func (r *File) RangeReader(from, amt int64) (io.ReadCloser, error) {
+func (f *File) RangeReader(from, amt int64) (io.ReadCloser, error) {
 	target := from + amt - 1 // must subtract 1!
-	if target >= r.cachedInfo.Size() {
-		target = r.cachedInfo.Size() - 1
+	if target >= f.cachedInfo.Size() {
+		target = f.cachedInfo.Size() - 1
 	}
-	if from >= r.cachedInfo.Size() {
+	if from >= f.cachedInfo.Size() {
 		return nil, io.EOF
 	}
 	rq := &s3.GetObjectInput{
-		Bucket: aws.String(r.fs.bucket),
-		Key:    aws.String(r.name),
+		Bucket: aws.String(f.fs.bucket),
+		Key:    aws.String(f.name),
 		Range:  aws.String(fmt.Sprintf("bytes=%d-%d", from, target)),
 	}
-	res, err := r.fs.s3API.GetObject(rq)
+	res, err := f.fs.s3API.GetObject(rq)
 	if err != nil {
 		if res.Body != nil {
 			res.Body.Close()
