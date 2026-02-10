@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.1](https://github.com/fclairamb/afero-s3/compare/v0.4.0...v0.4.1) (2026-02-10)
+
+
+### Bug Fixes
+
+* **deps:** update aws-sdk-go-v2 monorepo ([#929](https://github.com/fclairamb/afero-s3/issues/929)) ([c84c44e](https://github.com/fclairamb/afero-s3/commit/c84c44ea1e19993e72f1941392923b4d73709be8))
+* **deps:** update module github.com/aws/aws-sdk-go-v2/feature/s3/manager to v1.21.0 ([#927](https://github.com/fclairamb/afero-s3/issues/927)) ([0818baf](https://github.com/fclairamb/afero-s3/commit/0818baf930330b330a9a2f5bb21c3768438f067f))
+* **deps:** update module github.com/aws/aws-sdk-go-v2/feature/s3/manager to v1.22.0 ([#931](https://github.com/fclairamb/afero-s3/issues/931)) ([1a7d83f](https://github.com/fclairamb/afero-s3/commit/1a7d83f2fb88ebea56049c17d8fe9f7603ab7900))
+
 ## [0.4.0](https://github.com/fclairamb/afero-s3/compare/v0.3.1...v0.4.0) (2026-01-11)
 
 
