@@ -1,6 +1,6 @@
 module github.com/fclairamb/afero-s3
 
-go 1.23.0
+go 1.24
 
 toolchain go1.26.0
 
@@ -9,7 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.10
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.22.4
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.96.2
-	github.com/aws/smithy-go v1.24.1
+	github.com/aws/smithy-go v1.24.2
 	github.com/spf13/afero v1.15.0
 	github.com/stretchr/testify v1.11.1
 )
