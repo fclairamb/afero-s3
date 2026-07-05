@@ -222,7 +222,7 @@ func (f *File) Read(p []byte) (int, error) {
 	var err error
 	// if there is not currently a stream, attempt to open a stream at the current offset
 	if f.streamRead == nil {
-		f.streamRead, err = f.RangeReader(f.streamReadOffset, int64(len(p)))
+		f.streamRead, err = f.RangeReader(f.streamReadOffset, f.cachedInfo.Size()-f.streamReadOffset)
 		if err != nil {
 			return 0, err
 		}
@@ -276,7 +276,12 @@ func (f *File) Seek(offset int64, whence int) (int64, error) {
 		return 0, ErrNotSupported
 	}
 
-	// seekRead sets the offset of the next read, but does NOT open a stream.
+	// Close any existing read stream so the next Read() opens from the new offset
+	if f.streamRead != nil {
+		f.streamRead.Close()
+		f.streamRead = nil
+	}
+
 	return f.seekRead(offset, whence)
 }
 
