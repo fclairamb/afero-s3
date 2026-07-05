@@ -60,6 +60,21 @@ Tests require a local MinIO instance (S3-compatible server):
 - Tests create unique bucket names per test run
 - Coverage enforcement: minimum 80%
 
+### Validating against real S3
+
+`TestRealS3` (in `s3_real_test.go`) exercises the library against a real, pre-existing
+S3 bucket instead of MinIO. It's skipped by default (never runs in CI) and only runs
+when `AFERO_S3_TEST_BUCKET` is set:
+
+```bash
+AFERO_S3_TEST_BUCKET=my-bucket go test -run TestRealS3 -v .
+```
+
+Credentials/region come from the default AWS credential chain (`AWS_PROFILE`,
+`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`, IAM role, etc.) — no code changes needed.
+Everything the test creates lives under a unique, randomly-named prefix inside the
+bucket and is removed at the end of the test; the bucket itself is never deleted.
+
 ## Known Limitations
 
 - File appending/write seeking: Not supported (S3 limitation)
