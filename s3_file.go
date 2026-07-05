@@ -340,7 +340,7 @@ func (f *File) openWriteStream() error {
 		}
 
 		if f.fs.FileProps != nil {
-			applyFileWriteProps(input, f.fs.FileProps)
+			applyFileProps(input, f.fs.FileProps)
 		}
 
 		// If no Content-Type was specified, we'll guess one
