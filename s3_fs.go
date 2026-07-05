@@ -23,6 +23,9 @@ import (
 
 // https://aws.github.io/aws-sdk-go-v2/docs/migrating/
 
+// opStat is the os.PathError.Op value reported by Stat-related failures.
+const opStat = "stat"
+
 // Fs is an FS object backed by S3.
 type Fs struct {
 	FileProps *UploadedFileProperties // FileProps define the file properties we want to set for all new files
@@ -267,7 +270,7 @@ func (fs *Fs) Stat(name string) (os.FileInfo, error) {
 		}
 
 		return FileInfo{}, &os.PathError{
-			Op:   "stat",
+			Op:   opStat,
 			Path: name,
 			Err:  err,
 		}
@@ -287,14 +290,14 @@ func (fs *Fs) statDirectory(name string) (os.FileInfo, error) {
 	})
 	if err != nil {
 		return FileInfo{}, &os.PathError{
-			Op:   "stat",
+			Op:   opStat,
 			Path: name,
 			Err:  err,
 		}
 	}
 	if out.KeyCount == nil || (*out.KeyCount == 0 && name != "") {
 		return nil, &os.PathError{
-			Op:   "stat",
+			Op:   opStat,
 			Path: name,
 			Err:  os.ErrNotExist,
 		}
