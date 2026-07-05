@@ -38,7 +38,15 @@ type Fs struct {
 type UploadedFileProperties struct {
 	CacheControl *string // CacheControl defines the Cache-Control header
 	ContentType  *string // ContentType define the Content-Type header
-	ACL          string  // ACL defines the right to apply
+	// SSEKMSKeyID is the KMS key ID or ARN to use when ServerSideEncryption is a KMS mode.
+	SSEKMSKeyID *string
+	// SSEKMSEncryptionContext is the base64-encoded KMS encryption context, only used
+	// when ServerSideEncryption is a KMS mode.
+	SSEKMSEncryptionContext *string
+	ACL                     string // ACL defines the right to apply
+	// ServerSideEncryption selects the encryption mode (e.g. types.ServerSideEncryptionAwsKms
+	// or types.ServerSideEncryptionAes256). Leave empty to not request encryption.
+	ServerSideEncryption types.ServerSideEncryption
 }
 
 // NewFsFromConfig creates a new Fs instance from an AWS Config
@@ -85,7 +93,7 @@ func (fs *Fs) Create(name string) (afero.File, error) {
 		}
 
 		if fs.FileProps != nil {
-			applyFileCreateProps(req, fs.FileProps)
+			applyFileProps(req, fs.FileProps)
 		}
 
 		// If no Content-Type was specified, we'll guess one
@@ -349,9 +357,9 @@ func (fs Fs) sanitize(name string) string {
 	return sanitize(name)
 }
 
-// I couldn't find a way to make this code cleaner. It's basically a big copy-paste on two
-// very similar structures.
-func applyFileCreateProps(req *s3.PutObjectInput, p *UploadedFileProperties) {
+// applyFileProps copies the user-configured properties onto a PutObjectInput, used both
+// for the initial empty object created by Create() and for the streamed multipart upload.
+func applyFileProps(req *s3.PutObjectInput, p *UploadedFileProperties) {
 	if p.ACL != "" {
 		req.ACL = types.ObjectCannedACL(p.ACL)
 	}
@@ -363,19 +371,17 @@ func applyFileCreateProps(req *s3.PutObjectInput, p *UploadedFileProperties) {
 	if p.ContentType != nil {
 		req.ContentType = p.ContentType
 	}
-}
 
-func applyFileWriteProps(input *s3.PutObjectInput, p *UploadedFileProperties) {
-	if p.ACL != "" {
-		input.ACL = types.ObjectCannedACL(p.ACL)
+	if p.ServerSideEncryption != "" {
+		req.ServerSideEncryption = p.ServerSideEncryption
 	}
 
-	if p.CacheControl != nil {
-		input.CacheControl = p.CacheControl
+	if p.SSEKMSKeyID != nil {
+		req.SSEKMSKeyId = p.SSEKMSKeyID
 	}
 
-	if p.ContentType != nil {
-		input.ContentType = p.ContentType
+	if p.SSEKMSEncryptionContext != nil {
+		req.SSEKMSEncryptionContext = p.SSEKMSEncryptionContext
 	}
 }
 

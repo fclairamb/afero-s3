@@ -20,6 +20,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/spf13/afero"
 )
 
@@ -880,6 +881,26 @@ func TestFileProps(t *testing.T) {
 		}
 	})
 
+}
+
+// TestApplyFilePropsSSE checks the server-side-encryption fields are copied onto the
+// PutObjectInput. This can't be a round-trip test against MinIO: the CI MinIO image has
+// no KMS configured, so it rejects any PutObject that requests encryption.
+func TestApplyFilePropsSSE(t *testing.T) {
+	req := require.New(t)
+
+	props := &UploadedFileProperties{
+		ServerSideEncryption:    types.ServerSideEncryptionAwsKms,
+		SSEKMSKeyID:             aws.String("arn:aws:kms:us-east-1:111122223333:key/test-key-id"),
+		SSEKMSEncryptionContext: aws.String("eyJmb28iOiAiYmFyIn0="),
+	}
+
+	input := &s3.PutObjectInput{}
+	applyFileProps(input, props)
+
+	req.Equal(types.ServerSideEncryptionAwsKms, input.ServerSideEncryption)
+	req.Equal("arn:aws:kms:us-east-1:111122223333:key/test-key-id", *input.SSEKMSKeyId)
+	req.Equal("eyJmb28iOiAiYmFyIn0=", *input.SSEKMSEncryptionContext)
 }
 
 func TestFileReaddir(t *testing.T) {
