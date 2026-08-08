@@ -10,7 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.34
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.22.40
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.106.5
-	github.com/aws/smithy-go v1.27.6
+	github.com/aws/smithy-go v1.27.7
 	github.com/spf13/afero v1.15.0
 	github.com/stretchr/testify v1.11.1
 )
