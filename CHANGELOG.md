@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.5.1](https://github.com/fclairamb/afero-s3/compare/v0.5.0...v0.5.1) (2026-09-04)
+
+
+### Bug Fixes
+
+* **deps:** update aws-sdk-go-v2 monorepo ([#1000](https://github.com/fclairamb/afero-s3/issues/1000)) ([e383531](https://github.com/fclairamb/afero-s3/commit/e383531cbb8ea375c76afd1ae43febd04f45b59e))
+* **deps:** update aws-sdk-go-v2 monorepo ([#1002](https://github.com/fclairamb/afero-s3/issues/1002)) ([b1c9a37](https://github.com/fclairamb/afero-s3/commit/b1c9a373442fbf86a1aad4506045c39ec9ed07a9))
+* **deps:** update aws-sdk-go-v2 monorepo ([#1003](https://github.com/fclairamb/afero-s3/issues/1003)) ([7456950](https://github.com/fclairamb/afero-s3/commit/7456950d78adb97dbc5a63ad5f3dbd7ac016ede1))
+* **deps:** update aws-sdk-go-v2 monorepo ([#1004](https://github.com/fclairamb/afero-s3/issues/1004)) ([564793a](https://github.com/fclairamb/afero-s3/commit/564793abb8f978bf5cb3b5bffe63d9434d8ab0e7))
+* **deps:** update aws-sdk-go-v2 monorepo ([#1005](https://github.com/fclairamb/afero-s3/issues/1005)) ([ad9f466](https://github.com/fclairamb/afero-s3/commit/ad9f466f66faba808f71b5eb6b038beb07737543))
+* **deps:** update aws-sdk-go-v2 monorepo ([#1007](https://github.com/fclairamb/afero-s3/issues/1007)) ([18c2c5b](https://github.com/fclairamb/afero-s3/commit/18c2c5b5509c3e0e2ca436fa1c7da9524121bc41))
+* **deps:** update aws-sdk-go-v2 monorepo ([#1012](https://github.com/fclairamb/afero-s3/issues/1012)) ([f132276](https://github.com/fclairamb/afero-s3/commit/f132276a4508ac0456a45297a2e72b6ae0f9736f))
+* **deps:** update aws-sdk-go-v2 monorepo ([#1014](https://github.com/fclairamb/afero-s3/issues/1014)) ([f2d0c71](https://github.com/fclairamb/afero-s3/commit/f2d0c716e6ade894db8c1cf64e4cdb12269a2774))
+* **deps:** update aws-sdk-go-v2 monorepo ([#1017](https://github.com/fclairamb/afero-s3/issues/1017)) ([bf65af8](https://github.com/fclairamb/afero-s3/commit/bf65af846eb2c287e33c5a34c5915382676f2967))
+* **deps:** update aws-sdk-go-v2 monorepo ([#1018](https://github.com/fclairamb/afero-s3/issues/1018)) ([a8cf142](https://github.com/fclairamb/afero-s3/commit/a8cf14298ea65023d0074f51fd0b7466ab82cead))
+* **deps:** update aws-sdk-go-v2 monorepo ([#1019](https://github.com/fclairamb/afero-s3/issues/1019)) ([c6796d0](https://github.com/fclairamb/afero-s3/commit/c6796d0e0e0feef8fe7b6842e708af1d563939ac))
+* **deps:** update aws-sdk-go-v2 monorepo ([#1020](https://github.com/fclairamb/afero-s3/issues/1020)) ([257eb24](https://github.com/fclairamb/afero-s3/commit/257eb2484e9895766a9c8d3cc2c07b18bf41f177))
+* **deps:** update aws-sdk-go-v2 monorepo ([#1022](https://github.com/fclairamb/afero-s3/issues/1022)) ([646345d](https://github.com/fclairamb/afero-s3/commit/646345de92645a1e15b46150c02196696ce1d21d))
+* **deps:** update aws-sdk-go-v2 monorepo ([#988](https://github.com/fclairamb/afero-s3/issues/988)) ([743b0b0](https://github.com/fclairamb/afero-s3/commit/743b0b0000afbbeff89be0d3594ae42bcefc3c2e))
+* **deps:** update aws-sdk-go-v2 monorepo ([#991](https://github.com/fclairamb/afero-s3/issues/991)) ([67e1fbf](https://github.com/fclairamb/afero-s3/commit/67e1fbf7ab95b10a783dc7ef5c59c4b5746c8645))
+* **deps:** update aws-sdk-go-v2 monorepo ([#992](https://github.com/fclairamb/afero-s3/issues/992)) ([fb21858](https://github.com/fclairamb/afero-s3/commit/fb218580b02bac10aaef86296e380f87e01f7fe3))
+* **deps:** update aws-sdk-go-v2 monorepo ([#994](https://github.com/fclairamb/afero-s3/issues/994)) ([aff1056](https://github.com/fclairamb/afero-s3/commit/aff1056202e7c8037c5acf24873a3665d67c1089))
+* **deps:** update aws-sdk-go-v2 monorepo ([#996](https://github.com/fclairamb/afero-s3/issues/996)) ([9584c25](https://github.com/fclairamb/afero-s3/commit/9584c25d803afa1de2edfb4ced2266a8d39ccce8))
+* **deps:** update aws-sdk-go-v2 monorepo ([#998](https://github.com/fclairamb/afero-s3/issues/998)) ([0fb43da](https://github.com/fclairamb/afero-s3/commit/0fb43da0fc1177d5184fd421128d8ed6b2b27a5c))
+* **deps:** update aws-sdk-go-v2 monorepo ([#999](https://github.com/fclairamb/afero-s3/issues/999)) ([019eae7](https://github.com/fclairamb/afero-s3/commit/019eae7bac098367f476dbc8b795279c4d32ef50))
+* **deps:** update module github.com/aws/smithy-go to v1.27.4 ([#995](https://github.com/fclairamb/afero-s3/issues/995)) ([f395c76](https://github.com/fclairamb/afero-s3/commit/f395c768d3cd69fc66b3c7f82866349a629d4a86))
+* **deps:** update module github.com/aws/smithy-go to v1.27.5 ([#997](https://github.com/fclairamb/afero-s3/issues/997)) ([bb623f3](https://github.com/fclairamb/afero-s3/commit/bb623f3f392ddd198e75368ff856a396b8830272))
+* **deps:** update module github.com/aws/smithy-go to v1.27.7 ([#1001](https://github.com/fclairamb/afero-s3/issues/1001)) ([c2bf934](https://github.com/fclairamb/afero-s3/commit/c2bf9345f6c3da454c2d4a18a9f1ca0bd011b7cb))
+* **deps:** update module github.com/aws/smithy-go to v1.27.9 ([#1008](https://github.com/fclairamb/afero-s3/issues/1008)) ([e28101e](https://github.com/fclairamb/afero-s3/commit/e28101e7c8e6f91210f8a941cd619b7829e0d04a))
+* **deps:** update module github.com/aws/smithy-go to v1.28.0 ([#1013](https://github.com/fclairamb/afero-s3/issues/1013)) ([bde1960](https://github.com/fclairamb/afero-s3/commit/bde1960d12a2075c2b42cfdbe1e524dc5c7244bf))
+* **deps:** update module github.com/stretchr/testify to v1.12.0 ([#1009](https://github.com/fclairamb/afero-s3/issues/1009)) ([594e2ed](https://github.com/fclairamb/afero-s3/commit/594e2eda45195449b2c68dd296475ab768670916))
+* **deps:** update module github.com/stretchr/testify to v1.12.1 ([#1010](https://github.com/fclairamb/afero-s3/issues/1010)) ([f81113d](https://github.com/fclairamb/afero-s3/commit/f81113dee65e8e4b0d0df7f429c934c404b4ecba))
+
 ## [0.5.0](https://github.com/fclairamb/afero-s3/compare/v0.4.0...v0.5.0) (2026-07-05)
 
 
