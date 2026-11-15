@@ -22,7 +22,7 @@ better testing.
 ## Known limitations
 - File appending / seeking for write is not supported because S3 doesn't support it, it could be simulated by rewriting entire files.
 - Chtimes is not supported because S3 doesn't support it, it could be simulated through metadata.
-- Chmod support is very limited
+- Chmod support is very limited (it maps to S3 ACLs: private, public-read, public-read-write)
 
 
 ## How to use
