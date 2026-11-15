@@ -6,7 +6,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     services:
       minio:
         image: fclairamb/minio-github-actions:v0.2
@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Setup go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: ${{ matrix.go }}
 
