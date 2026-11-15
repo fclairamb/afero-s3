@@ -1,5 +1,3 @@
-
-
 # S3 Backend for Afero
 
 ![Build](https://github.com/fclairamb/afero-s3/workflows/Build/badge.svg)
