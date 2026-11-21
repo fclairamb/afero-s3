@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.5.2](https://github.com/fclairamb/afero-s3/compare/v0.5.1...v0.5.2) (2026-11-21)
+
+
+### Bug Fixes
+
+* **deps:** update aws-sdk-go-v2 monorepo ([#1055](https://github.com/fclairamb/afero-s3/issues/1055)) ([189c531](https://github.com/fclairamb/afero-s3/commit/189c5311e3d999fd269bae6e1938c8d5e874e833))
+* **deps:** update aws-sdk-go-v2 monorepo ([#1057](https://github.com/fclairamb/afero-s3/issues/1057)) ([18504d1](https://github.com/fclairamb/afero-s3/commit/18504d112f9f58caba73768605a3792d98673f0c))
+* **deps:** update aws-sdk-go-v2 monorepo ([#1058](https://github.com/fclairamb/afero-s3/issues/1058)) ([be7cdeb](https://github.com/fclairamb/afero-s3/commit/be7cdeba3fdc3d78bbbebb36269720c4f98bb49d))
+* **deps:** update aws-sdk-go-v2 monorepo ([#1059](https://github.com/fclairamb/afero-s3/issues/1059)) ([937cc98](https://github.com/fclairamb/afero-s3/commit/937cc9851494c03ac04ab897a1540bfc9db9655d))
+
 ## [0.5.1](https://github.com/fclairamb/afero-s3/compare/v0.5.0...v0.5.1) (2026-11-15)
 
 
